@@ -55,7 +55,11 @@ export function fetchDashboardSummary(
   currency: Currency,
   signal?: AbortSignal,
 ): Promise<DashboardSummary> {
-  const params = new URLSearchParams({ year: String(year), month: String(month), currency });
+  const params = new URLSearchParams({
+    year: String(year),
+    month: String(month),
+    currency,
+  });
   return request<DashboardSummary>(`/dashboard/summary?${params}`, { signal });
 }
 
@@ -64,15 +68,24 @@ export function fetchAccounts(signal?: AbortSignal): Promise<Account[]> {
 }
 
 export function createAccount(payload: AccountCreate): Promise<Account> {
-  return request<Account>("/accounts", { method: "POST", body: JSON.stringify(payload) });
+  return request<Account>("/accounts", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export function deleteAccount(id: number): Promise<void> {
   return request<void>(`/accounts/${id}`, { method: "DELETE" });
 }
 
-export function updateAccount(id: number, changes: AccountUpdate): Promise<Account> {
-  return request<Account>(`/accounts/${id}`, { method: "PATCH", body: JSON.stringify(changes) });
+export function updateAccount(
+  id: number,
+  changes: AccountUpdate,
+): Promise<Account> {
+  return request<Account>(`/accounts/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(changes),
+  });
 }
 
 export function fetchCategories(signal?: AbortSignal): Promise<Category[]> {
@@ -80,15 +93,24 @@ export function fetchCategories(signal?: AbortSignal): Promise<Category[]> {
 }
 
 export function createCategory(payload: CategoryCreate): Promise<Category> {
-  return request<Category>("/categories", { method: "POST", body: JSON.stringify(payload) });
+  return request<Category>("/categories", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export function deleteCategory(id: number): Promise<void> {
   return request<void>(`/categories/${id}`, { method: "DELETE" });
 }
 
-export function updateCategory(id: number, changes: CategoryUpdate): Promise<Category> {
-  return request<Category>(`/categories/${id}`, { method: "PATCH", body: JSON.stringify(changes) });
+export function updateCategory(
+  id: number,
+  changes: CategoryUpdate,
+): Promise<Category> {
+  return request<Category>(`/categories/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(changes),
+  });
 }
 
 export interface PeriodFilter {
@@ -98,18 +120,32 @@ export interface PeriodFilter {
   currency?: Currency;
 }
 
-export function fetchTransactions(filter: PeriodFilter, signal?: AbortSignal): Promise<Transaction[]> {
-  const params = new URLSearchParams({ year: String(filter.year), limit: "1000" });
+export function fetchTransactions(
+  filter: PeriodFilter,
+  signal?: AbortSignal,
+): Promise<Transaction[]> {
+  const params = new URLSearchParams({
+    year: String(filter.year),
+    limit: "1000",
+  });
   if (filter.month) params.set("month", String(filter.month));
   if (filter.currency) params.set("currency", filter.currency);
   return request<Transaction[]>(`/transactions?${params}`, { signal });
 }
 
-export function createTransaction(payload: TransactionCreate): Promise<Transaction> {
-  return request<Transaction>("/transactions", { method: "POST", body: JSON.stringify(payload) });
+export function createTransaction(
+  payload: TransactionCreate,
+): Promise<Transaction> {
+  return request<Transaction>("/transactions", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
-export function updateTransaction(id: number, changes: TransactionUpdate): Promise<Transaction> {
+export function updateTransaction(
+  id: number,
+  changes: TransactionUpdate,
+): Promise<Transaction> {
   return request<Transaction>(`/transactions/${id}`, {
     method: "PATCH",
     body: JSON.stringify(changes),
@@ -129,6 +165,33 @@ export function fetchMonthlyTotals(
   return request<MonthTotals[]>(`/reports/monthly?${params}`, { signal });
 }
 
+export interface ReportFile {
+  blob: Blob;
+  filename: string;
+}
+
+/** Monthly report PDF; the reader's UTC offset sets the times and the month's bounds. */
+export async function downloadMonthlyReport(
+  year: number,
+  month: number,
+  currency: Currency,
+): Promise<ReportFile> {
+  const params = new URLSearchParams({
+    year: String(year),
+    month: String(month),
+    currency,
+    utc_offset: String(-new Date().getTimezoneOffset()),
+  });
+  const response = await fetch(`${BASE_URL}/reports/monthly-pdf?${params}`);
+  if (!response.ok) {
+    throw new ApiError(response.status, `Request failed: ${response.status}`);
+  }
+  const fallback = `selfmoney-relatorio-${year}-${String(month).padStart(2, "0")}.pdf`;
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? fallback;
+  return { blob: await response.blob(), filename };
+}
+
 export function fetchBudgets(signal?: AbortSignal): Promise<Budget[]> {
   return request<Budget[]>("/budgets", { signal });
 }
@@ -138,14 +201,20 @@ export function fetchBudget(id: number, signal?: AbortSignal): Promise<Budget> {
 }
 
 export function createBudget(payload: BudgetCreate): Promise<Budget> {
-  return request<Budget>("/budgets", { method: "POST", body: JSON.stringify(payload) });
+  return request<Budget>("/budgets", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export function deleteBudget(id: number): Promise<void> {
   return request<void>(`/budgets/${id}`, { method: "DELETE" });
 }
 
-export function addBudgetItem(budgetId: number, payload: BudgetItemCreate): Promise<Budget> {
+export function addBudgetItem(
+  budgetId: number,
+  payload: BudgetItemCreate,
+): Promise<Budget> {
   return request<Budget>(`/budgets/${budgetId}/items`, {
     method: "POST",
     body: JSON.stringify(payload),
@@ -163,15 +232,25 @@ export function updateBudgetItem(
   });
 }
 
-export function deleteBudgetItem(budgetId: number, itemId: number): Promise<Budget> {
-  return request<Budget>(`/budgets/${budgetId}/items/${itemId}`, { method: "DELETE" });
+export function deleteBudgetItem(
+  budgetId: number,
+  itemId: number,
+): Promise<Budget> {
+  return request<Budget>(`/budgets/${budgetId}/items/${itemId}`, {
+    method: "DELETE",
+  });
 }
 
-export function fetchBudgetTemplates(signal?: AbortSignal): Promise<BudgetTemplate[]> {
+export function fetchBudgetTemplates(
+  signal?: AbortSignal,
+): Promise<BudgetTemplate[]> {
   return request<BudgetTemplate[]>("/budget-templates", { signal });
 }
 
-export function saveBudgetAsTemplate(budgetId: number, name: string): Promise<BudgetTemplate> {
+export function saveBudgetAsTemplate(
+  budgetId: number,
+  name: string,
+): Promise<BudgetTemplate> {
   return request<BudgetTemplate>(`/budgets/${budgetId}/save-template`, {
     method: "POST",
     body: JSON.stringify({ name }),
@@ -185,27 +264,51 @@ export function deleteBudgetTemplate(id: number): Promise<void> {
 export interface MovementFilter {
   accountId?: number;
   kind?: MovementKind;
+  /** Local calendar days, "YYYY-MM-DD", both inclusive. */
+  from?: string;
+  to?: string;
 }
 
-export function fetchMovements(filter: MovementFilter, signal?: AbortSignal): Promise<Movement[]> {
+/** Start of a local calendar day as an ISO instant with its UTC offset. */
+function localDayStart(iso: string, addDays = 0): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(year, month - 1, day + addDays).toISOString();
+}
+
+export function fetchMovements(
+  filter: MovementFilter,
+  signal?: AbortSignal,
+): Promise<Movement[]> {
   const params = new URLSearchParams();
   if (filter.accountId) params.set("account_id", String(filter.accountId));
   if (filter.kind) params.set("kind", filter.kind);
+  // The API compares instants, so send where the user's days begin and end.
+  if (filter.from) params.set("created_from", localDayStart(filter.from));
+  if (filter.to) params.set("created_before", localDayStart(filter.to, 1));
   return request<Movement[]>(`/movements?${params}`, { signal });
 }
 
-export function depositMoney(payload: Schemas["DepositCreate"]): Promise<Movement> {
-  return request<Movement>("/movements/deposit", { method: "POST", body: JSON.stringify(payload) });
+export function depositMoney(
+  payload: Schemas["DepositCreate"],
+): Promise<Movement> {
+  return request<Movement>("/movements/deposit", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
-export function withdrawMoney(payload: Schemas["WithdrawalCreate"]): Promise<Movement> {
+export function withdrawMoney(
+  payload: Schemas["WithdrawalCreate"],
+): Promise<Movement> {
   return request<Movement>("/movements/withdrawal", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export function transferMoney(payload: Schemas["TransferCreate"]): Promise<Movement> {
+export function transferMoney(
+  payload: Schemas["TransferCreate"],
+): Promise<Movement> {
   return request<Movement>("/movements/transfer", {
     method: "POST",
     body: JSON.stringify(payload),

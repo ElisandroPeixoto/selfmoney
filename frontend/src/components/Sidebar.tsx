@@ -9,6 +9,7 @@ import {
   CollapseIcon,
   DashboardIcon,
   ListIcon,
+  ReportIcon,
   TagIcon,
   TransferIcon,
   WalletIcon,
@@ -33,6 +34,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/movimentacoes", label: "Movimentações", icon: <TransferIcon /> },
   { to: "/contas", label: "Contas", icon: <WalletIcon /> },
   { to: "/categorias", label: "Categorias", icon: <TagIcon /> },
+  { to: "/relatorios", label: "Relatórios", icon: <ReportIcon /> },
 ].sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
 
 function readCollapsed(): boolean {

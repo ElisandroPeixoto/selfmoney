@@ -10,7 +10,8 @@ import {
   type Transaction,
   type TransactionType,
 } from "../api/client";
-import { daysInMonth, monthName, toIsoDate } from "../lib/format";
+import { budgetFor } from "../lib/budgets";
+import { daysInMonth, formatMonth, monthName, toIsoDate } from "../lib/format";
 import MoneyInput from "./MoneyInput";
 
 interface Props {
@@ -30,7 +31,8 @@ const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 function defaultDay(year: number, month: number): number {
   const today = new Date();
-  const isCurrentMonth = today.getFullYear() === year && today.getMonth() + 1 === month;
+  const isCurrentMonth =
+    today.getFullYear() === year && today.getMonth() + 1 === month;
   return isCurrentMonth ? today.getDate() : 1;
 }
 
@@ -46,14 +48,23 @@ export default function TransactionForm({
   onCancel,
 }: Props) {
   const editing = transaction !== undefined;
-  const [txYear, txMonth, txDay] = transaction?.date.split("-").map(Number) ?? [];
-  const [type, setType] = useState<TransactionType>(transaction?.type ?? "expense");
-  const [description, setDescription] = useState(transaction?.description ?? "");
+  const [txYear, txMonth, txDay] =
+    transaction?.date.split("-").map(Number) ?? [];
+  const [type, setType] = useState<TransactionType>(
+    transaction?.type ?? "expense",
+  );
+  const [description, setDescription] = useState(
+    transaction?.description ?? "",
+  );
   const [amount, setAmount] = useState(transaction?.amount ?? "");
   const [year, setYear] = useState(txYear ?? initialYear);
   const [month, setMonth] = useState(txMonth ?? initialMonth);
-  const [day, setDay] = useState(() => txDay ?? defaultDay(initialYear, initialMonth));
-  const [categoryId, setCategoryId] = useState<number | null>(transaction?.category_id ?? null);
+  const [day, setDay] = useState(
+    () => txDay ?? defaultDay(initialYear, initialMonth),
+  );
+  const [categoryId, setCategoryId] = useState<number | null>(
+    transaction?.category_id ?? null,
+  );
   const [accountId, setAccountId] = useState<number | null>(
     transaction?.account_id ?? accounts[0]?.id ?? null,
   );
@@ -61,7 +72,9 @@ export default function TransactionForm({
     transaction?.budget_item_id ?? null,
   );
   // An old transaction may fall outside the usual year range; keep its year selectable.
-  const yearOptions = years.includes(year) ? years : [...years, year].sort((a, b) => b - a);
+  const yearOptions = years.includes(year)
+    ? years
+    : [...years, year].sort((a, b) => b - a);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,21 +83,25 @@ export default function TransactionForm({
   const isExpense = type === "expense";
   // Only categories of the selected type apply; switching type drops a now-invalid choice.
   const categoryOptions = categories.filter((c) => c.kind === type);
-  const effectiveCategoryId = categoryOptions.some((c) => c.id === categoryId) ? categoryId : null;
+  const effectiveCategoryId = categoryOptions.some((c) => c.id === categoryId)
+    ? categoryId
+    : null;
 
   // An expense can count against the budget of its month, in its account's currency.
   const account = accounts.find((a) => a.id === accountId);
   const budget = isExpense
-    ? budgets.find((b) => b.year === year && b.month === month && b.currency === account?.currency)
+    ? budgetFor(budgets, year, month, account?.currency)
     : undefined;
-  const effectiveBudgetItemId =
-    budget?.items.some((i) => i.id === budgetItemId) ? budgetItemId : null;
+  const effectiveBudgetItemId = budget?.items.some((i) => i.id === budgetItemId)
+    ? budgetItemId
+    : null;
 
   if (accounts.length === 0) {
     return (
       <section className="card">
         <p className="empty">
-          Cadastre uma conta antes de adicionar lançamentos. <Link to="/contas">Ir para Contas</Link>
+          Cadastre uma conta antes de adicionar lançamentos.{" "}
+          <Link to="/contas">Ir para Contas</Link>
         </p>
       </section>
     );
@@ -99,7 +116,8 @@ export default function TransactionForm({
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (accountId === null || Number(amount) <= 0 || !description.trim()) return;
+    if (accountId === null || Number(amount) <= 0 || !description.trim())
+      return;
     setSaving(true);
     setError(null);
     const fields = {
@@ -137,7 +155,10 @@ export default function TransactionForm({
             ? "Nova despesa"
             : "Nova receita"}
       </h2>
-      <form onSubmit={handleSubmit} aria-label={editing ? "Editar lançamento" : "Novo lançamento"}>
+      <form
+        onSubmit={handleSubmit}
+        aria-label={editing ? "Editar lançamento" : "Novo lançamento"}
+      >
         <div className="segmented" role="radiogroup" aria-label="Tipo">
           {(
             [
@@ -216,7 +237,11 @@ export default function TransactionForm({
               min={1}
               max={maxDay}
               value={day}
-              onChange={(e) => setDay(Math.max(1, Math.min(maxDay, Number(e.target.value) || 1)))}
+              onChange={(e) =>
+                setDay(
+                  Math.max(1, Math.min(maxDay, Number(e.target.value) || 1)),
+                )
+              }
             />
           </label>
           <label className="field" htmlFor="tx-category">
@@ -224,7 +249,9 @@ export default function TransactionForm({
             <select
               id="tx-category"
               value={effectiveCategoryId ?? ""}
-              onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : null)}
+              onChange={(e) =>
+                setCategoryId(e.target.value ? Number(e.target.value) : null)
+              }
             >
               <option value="">Sem categoria</option>
               {categoryOptions.map((c) => (
@@ -251,11 +278,15 @@ export default function TransactionForm({
           </label>
           {budget && budget.items.length > 0 && (
             <label className="field" htmlFor="tx-budget-item">
-              <span>Item do orçamento</span>
+              <span>Categoria do orçamento</span>
               <select
                 id="tx-budget-item"
                 value={effectiveBudgetItemId ?? ""}
-                onChange={(e) => setBudgetItemId(e.target.value ? Number(e.target.value) : null)}
+                onChange={(e) =>
+                  setBudgetItemId(
+                    e.target.value ? Number(e.target.value) : null,
+                  )
+                }
               >
                 <option value="">Fora do orçamento</option>
                 {budget.items.map((item) => (
@@ -265,6 +296,30 @@ export default function TransactionForm({
                 ))}
               </select>
             </label>
+          )}
+          {/* Say why the budget link is unavailable instead of hiding it silently. */}
+          {isExpense && (!budget || budget.items.length === 0) && (
+            <div className="field">
+              <span>Categoria do orçamento</span>
+              <p className="field-note" data-testid="budget-link-note">
+                {budget ? (
+                  <>
+                    O orçamento de {formatMonth(year, month)} não tem
+                    categorias.{" "}
+                    <Link to={`/orcamentos/${budget.id}`}>
+                      Adicionar categorias
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    Sem orçamento em {formatMonth(year, month)}
+                    {showCurrency && account
+                      ? ` (${account.currency})`
+                      : ""}. <Link to="/orcamentos">Criar orçamento</Link>
+                  </>
+                )}
+              </p>
+            </div>
           )}
         </div>
 
@@ -282,7 +337,11 @@ export default function TransactionForm({
             className="button primary"
             disabled={saving || !description.trim() || Number(amount) <= 0}
           >
-            {editing ? "Salvar alterações" : isExpense ? "Adicionar despesa" : "Adicionar receita"}
+            {editing
+              ? "Salvar alterações"
+              : isExpense
+                ? "Adicionar despesa"
+                : "Adicionar receita"}
           </button>
         </div>
       </form>

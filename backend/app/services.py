@@ -1,6 +1,7 @@
 import calendar
 from collections import defaultdict
-from datetime import date
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from sqlalchemy import case, func, select
@@ -24,6 +25,7 @@ from app.schemas import (
     CurrencyTotal,
     DashboardSummary,
     MonthTotals,
+    MovementRead,
 )
 
 UNCATEGORIZED_NAME = "Sem categoria"
@@ -79,8 +81,13 @@ def period_bounds(year: int, month: int | None = None) -> tuple[date, date]:
 
 
 def spending_by_category(
-    db: Session, year: int, month: int, currency: Currency
+    db: Session,
+    year: int,
+    month: int,
+    currency: Currency,
+    tx_type: TransactionType = TransactionType.EXPENSE,
 ) -> list[CategorySpending]:
+    """Totals per category for one month; expenses by default, or income."""
     first_day, last_day = period_bounds(year, month)
     total = func.sum(Transaction.amount)
     rows = db.execute(
@@ -89,7 +96,7 @@ def spending_by_category(
         .join(Account, Transaction.account_id == Account.id)
         .outerjoin(Category, Transaction.category_id == Category.id)
         .where(
-            Transaction.type == TransactionType.EXPENSE,
+            Transaction.type == tx_type,
             Transaction.date.between(first_day, last_day),
             Account.currency == currency,
         )
@@ -156,6 +163,139 @@ def dashboard_summary(
         month_expenses=_money(sum((s.total for s in spending), Decimal("0"))),
         accounts=accounts,
         spending_by_category=spending,
+    )
+
+
+REPORT_HISTORY_MONTHS = 6
+
+
+@dataclass(frozen=True)
+class ReportMonth:
+    year: int
+    month: int
+    income: Decimal
+    expense: Decimal
+
+
+@dataclass(frozen=True)
+class ReportTransaction:
+    date: date
+    description: str
+    type: TransactionType
+    amount: Decimal
+    category: str
+    account: str
+    budget_item: str | None
+
+
+@dataclass(frozen=True)
+class MonthlyReport:
+    year: int
+    month: int
+    currency: Currency
+    generated_at: datetime
+    income: Decimal
+    expense: Decimal
+    previous: ReportMonth
+    # Oldest first, ending at the report's month.
+    history: list[ReportMonth]
+    spending: list[CategorySpending]
+    income_by_category: list[CategorySpending]
+    budget: BudgetRead | None
+    accounts: list[AccountRead]
+    balances_by_currency: list[CurrencyTotal]
+    transactions: list[ReportTransaction]
+    movements: list[MovementRead]
+
+
+def _shift_month(year: int, month: int, delta: int) -> tuple[int, int]:
+    index = year * 12 + (month - 1) + delta
+    return index // 12, index % 12 + 1
+
+
+def monthly_report(
+    db: Session,
+    year: int,
+    month: int,
+    currency: Currency,
+    utc_offset_minutes: int = 0,
+    now: datetime | None = None,
+) -> MonthlyReport:
+    """Everything the monthly PDF shows, for one month and one currency.
+
+    `utc_offset_minutes` is the reader's offset: it sets the generation time shown and which
+    movements (stored in UTC) fall inside the month.
+    """
+    tz = timezone(timedelta(minutes=utc_offset_minutes))
+    generated_at = (now or datetime.now(UTC)).astimezone(tz)
+
+    months = [_shift_month(year, month, -i) for i in range(REPORT_HISTORY_MONTHS - 1, -1, -1)]
+    totals_by_year = {y: monthly_totals(db, y, currency) for y in {y for y, _ in months}}
+    history = [
+        ReportMonth(y, m, totals_by_year[y][m - 1].income, totals_by_year[y][m - 1].expense)
+        for y, m in months
+    ]
+    current, previous = history[-1], history[-2]
+
+    summary = dashboard_summary(db, year, month, currency)
+    budget = db.scalar(
+        select(Budget).where(
+            Budget.year == year, Budget.month == month, Budget.currency == currency
+        )
+    )
+
+    first_day, last_day = period_bounds(year, month)
+    tx_rows = db.execute(
+        select(Transaction, Account.name, Category.name, BudgetItem.name)
+        .join(Account, Transaction.account_id == Account.id)
+        .outerjoin(Category, Transaction.category_id == Category.id)
+        .outerjoin(BudgetItem, Transaction.budget_item_id == BudgetItem.id)
+        .where(Transaction.date.between(first_day, last_day), Account.currency == currency)
+        .order_by(Transaction.date, Transaction.id)
+    ).all()
+    transactions = [
+        ReportTransaction(
+            date=tx.date,
+            description=tx.description,
+            type=tx.type,
+            amount=_money(tx.amount),
+            category=category_name or UNCATEGORIZED_NAME,
+            account=account_name,
+            budget_item=item_name,
+        )
+        for tx, account_name, category_name, item_name in tx_rows
+    ]
+
+    # The month in the reader's time zone, compared in UTC like the stored values.
+    next_year, next_month = _shift_month(year, month, 1)
+    month_start = datetime(year, month, 1, tzinfo=tz).astimezone(UTC)
+    month_end = datetime(next_year, next_month, 1, tzinfo=tz).astimezone(UTC)
+    movements = db.scalars(
+        select(AccountMovement)
+        .where(
+            AccountMovement.currency == currency,
+            AccountMovement.created_at >= month_start,
+            AccountMovement.created_at < month_end,
+        )
+        .order_by(AccountMovement.created_at, AccountMovement.id)
+    )
+
+    return MonthlyReport(
+        year=year,
+        month=month,
+        currency=currency,
+        generated_at=generated_at,
+        income=current.income,
+        expense=current.expense,
+        previous=previous,
+        history=history,
+        spending=summary.spending_by_category,
+        income_by_category=spending_by_category(db, year, month, currency, TransactionType.INCOME),
+        budget=budget_read(db, budget) if budget else None,
+        accounts=summary.accounts,
+        balances_by_currency=summary.balances_by_currency,
+        transactions=transactions,
+        movements=[MovementRead.model_validate(m) for m in movements],
     )
 
 

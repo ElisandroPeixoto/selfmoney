@@ -5,22 +5,32 @@ import { vi } from "vitest";
 import App from "../App";
 import { ThemeProvider } from "../theme/ThemeProvider";
 
-type Handler = (init: RequestInit | undefined) => { status?: number; body?: unknown };
+type Handler = (init: RequestInit | undefined) => {
+  status?: number;
+  body?: unknown;
+  headers?: Record<string, string>;
+};
 
 /** Mocks fetch with handlers keyed by "METHOD /path" (query string ignored). */
 export function mockApi(routes: Record<string, Handler>) {
-  return vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-    const url = new URL(String(input), "http://localhost");
-    const key = `${init?.method ?? "GET"} ${url.pathname}`;
-    const handler = routes[key];
-    if (!handler) throw new Error(`Unexpected request: ${key}`);
-    const { status = 200, body } = handler(init);
-    return {
-      ok: status < 400,
-      status,
-      json: async () => body,
-    } as Response;
-  });
+  return vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementation(async (input, init) => {
+      const url = new URL(String(input), "http://localhost");
+      const key = `${init?.method ?? "GET"} ${url.pathname}`;
+      const handler = routes[key];
+      if (!handler) throw new Error(`Unexpected request: ${key}`);
+      const { status = 200, body, headers } = handler(init);
+      return {
+        ok: status < 400,
+        status,
+        headers: new Headers(headers),
+        json: async () => body,
+        // Binary responses (e.g. PDFs) pass a Blob as the body.
+        blob: async () =>
+          body instanceof Blob ? body : new Blob([JSON.stringify(body)]),
+      } as Response;
+    });
 }
 
 export function renderApp(path = "/") {

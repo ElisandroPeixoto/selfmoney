@@ -57,7 +57,8 @@ backend/app/
   database.py      engine, SessionLocal, get_db, Base
   models.py        Account, Category, Transaction, Budget, BudgetItem, BudgetTemplate(Item), AccountMovement
   schemas.py       modelos Pydantic de entrada/saída (o contrato da API)
-  services.py      regras de cálculo: saldos, dashboard, relatório mensal, orçamentos
+  services.py      regras de cálculo: saldos, dashboard, totais mensais, orçamentos, monthly_report
+  report_pdf.py    desenho do relatório mensal em PDF (reportlab); só layout, dados vêm de services
   routers/         accounts, categories, transactions, dashboard, reports, budgets, movements
   seed.py          dados de exemplo
 backend/alembic/versions/   0001…0006 (numeração sequencial manual via --rev-id)
@@ -66,10 +67,13 @@ backend/tests/              conftest (SQLite em memória + override de get_db), 
 frontend/src/
   api/client.ts    fetch tipado; uma função por endpoint; tipos derivados de schema.d.ts
   api/schema.d.ts  GERADO — não editar à mão
-  pages/           Dashboard, Transactions (Lançamentos), Budgets (Orçamentos), Movements, Accounts, Categories
-  components/      Sidebar, ThemeToggle, AccountsCard, SpendingChart, BudgetChart, BudgetDetail,
+  pages/           Dashboard, Transactions (Lançamentos), Budgets (Orçamentos), Movements, Accounts,
+                   Categories, Reports (Relatórios)
+  components/      Sidebar, ThemeToggle, AccountsCard, SpendingChart, IncomeExpenseChart, BudgetChart, BudgetDetail,
                    BudgetProgress, TransactionForm, MovementForm, MoneyInput, IconPicker, BankLogo, CategoryLabel, icons
   lib/format.ts    formatação pt-BR: moeda, %, mês, data, datas ISO
+  lib/budgets.ts   budgetFor: orçamento de um mês/moeda (formulário e lista de Lançamentos)
+  lib/download.ts  saveFile: entrega um Blob como download
   lib/options.ts   bancos, moedas, paleta de categorias, ícones de categoria, rótulos de movimentação
   theme/           ThemeProvider + useTheme (claro/escuro, salvo em localStorage)
   assets/banks/    logos SVG simplificados (nubank, banco_do_brasil, itau)
@@ -79,7 +83,7 @@ frontend/src/
 ```
 
 Rotas do frontend: `/` Dashboard, `/lancamentos`, `/orcamentos` e `/orcamentos/:budgetId`,
-`/movimentacoes`, `/contas`, `/categorias`.
+`/movimentacoes`, `/contas`, `/categorias`, `/relatorios`.
 
 ## Domínio e regras de negócio
 
@@ -113,7 +117,13 @@ Rotas do frontend: `/` Dashboard, `/lancamentos`, `/orcamentos` e `/orcamentos/:
   (≥ 3 caracteres, aparada). O log é **append-only**: não existe editar/excluir na API. Os nomes das contas
   são copiados no registro para o log continuar legível se a conta for renomeada/excluída.
 - **Datas/horas:** `created_at` das movimentações é gravado em UTC; o schema devolve com `+00:00`
-  (SQLite perde o fuso). Datas `YYYY-MM-DD` são formatadas à mão no frontend para não deslocar o dia.
+  (SQLite perde o fuso). Filtros por dia usam o dia **local** do usuário: o frontend manda instantes
+  com fuso (`created_from`/`created_before` no histórico) ou o deslocamento em minutos (`utc_offset`
+  no relatório PDF), e o backend compara em UTC.
+- **Relatório PDF** (`GET /api/reports/monthly-pdf`): um mês e uma moeda; saldos das contas são os
+  atuais (todas as moedas, sem somar moedas diferentes). Fonte Helvetica padrão do PDF (WinAnsi):
+  evite caracteres fora do Latin-1 como `−`, `≥`, emojis. Testes renderizam com `compress=False`
+  para procurar texto no PDF. Datas `YYYY-MM-DD` são formatadas à mão no frontend para não deslocar o dia.
 
 ## Banco de dados
 

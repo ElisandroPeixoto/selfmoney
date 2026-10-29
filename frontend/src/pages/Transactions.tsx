@@ -8,6 +8,7 @@ import {
   fetchCategories,
   fetchMonthlyTotals,
   fetchTransactions,
+  updateTransaction,
   type Account,
   type Budget,
   type Category,
@@ -18,7 +19,13 @@ import {
 import CategoryLabel from "../components/CategoryLabel";
 import { EditIcon, TrashIcon } from "../components/icons";
 import TransactionForm from "../components/TransactionForm";
-import { formatCurrency, formatDate, formatMonth, monthName } from "../lib/format";
+import { budgetFor } from "../lib/budgets";
+import {
+  formatCurrency,
+  formatDate,
+  formatMonth,
+  monthName,
+} from "../lib/format";
 
 const WHOLE_YEAR = 0;
 const UNCATEGORIZED_COLOR = "#94a3b8";
@@ -59,7 +66,9 @@ export default function Transactions() {
         setCategories(cats);
         setBudgets(buds);
       })
-      .catch(() => !controller.signal.aborted && setRecords({ status: "error" }));
+      .catch(
+        () => !controller.signal.aborted && setRecords({ status: "error" }),
+      );
     return () => controller.abort();
   }, []);
 
@@ -73,13 +82,23 @@ export default function Transactions() {
       ),
       fetchMonthlyTotals(year, currency, controller.signal),
     ])
-      .then(([transactions, months]) => setRecords({ status: "ready", transactions, months }))
-      .catch(() => !controller.signal.aborted && setRecords({ status: "error" }));
+      .then(([transactions, months]) =>
+        setRecords({ status: "ready", transactions, months }),
+      )
+      .catch(
+        () => !controller.signal.aborted && setRecords({ status: "error" }),
+      );
     return () => controller.abort();
   }, [year, month, currency, reloadKey]);
 
-  const accountsById = useMemo(() => new Map(accounts?.map((a) => [a.id, a])), [accounts]);
-  const categoriesById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+  const accountsById = useMemo(
+    () => new Map(accounts?.map((a) => [a.id, a])),
+    [accounts],
+  );
+  const categoriesById = useMemo(
+    () => new Map(categories.map((c) => [c.id, c])),
+    [categories],
+  );
   const currencies = useMemo(
     () => [...new Set(accounts?.map((a) => a.currency) ?? [])].sort(),
     [accounts],
@@ -96,7 +115,9 @@ export default function Transactions() {
     setEditing(tx);
     // The form opens above the filters; bring it into view.
     requestAnimationFrame(() =>
-      document.getElementById("transaction-form-title")?.scrollIntoView({ block: "center" }),
+      document
+        .getElementById("transaction-form-title")
+        ?.scrollIntoView({ block: "center" }),
     );
   }
 
@@ -112,11 +133,37 @@ export default function Transactions() {
       visible
         ? `Lançamento ${verb}.`
         : `Lançamento ${verb} em ${formatMonth(txYear, txMonth)}` +
-            (account && account.currency !== currency ? ` (${account.currency})` : "") +
+            (account && account.currency !== currency
+              ? ` (${account.currency})`
+              : "") +
             ".",
     );
     setEditing(null);
     setReloadKey((k) => k + 1);
+  }
+
+  async function changeBudgetLink(
+    tx: Transaction,
+    budgetItemId: number | null,
+  ) {
+    try {
+      const saved = await updateTransaction(tx.id, {
+        budget_item_id: budgetItemId,
+      });
+      setNotice(null);
+      setRecords((current) =>
+        current.status === "ready"
+          ? {
+              ...current,
+              transactions: current.transactions.map((t) =>
+                t.id === saved.id ? saved : t,
+              ),
+            }
+          : current,
+      );
+    } catch {
+      setNotice("Não foi possível alterar a categoria do orçamento.");
+    }
   }
 
   async function handleDelete(tx: Transaction) {
@@ -132,17 +179,20 @@ export default function Transactions() {
 
   const periodTotals =
     records.status === "ready"
-      ? (month === WHOLE_YEAR ? records.months : records.months.filter((m) => m.month === month))
-          .reduce(
-            (acc, m) => ({
-              income: acc.income + Number(m.income),
-              expense: acc.expense + Number(m.expense),
-            }),
-            { income: 0, expense: 0 },
-          )
+      ? (month === WHOLE_YEAR
+          ? records.months
+          : records.months.filter((m) => m.month === month)
+        ).reduce(
+          (acc, m) => ({
+            income: acc.income + Number(m.income),
+            expense: acc.expense + Number(m.expense),
+          }),
+          { income: 0, expense: 0 },
+        )
       : null;
 
-  const periodLabel = month === WHOLE_YEAR ? `Ano de ${year}` : formatMonth(year, month);
+  const periodLabel =
+    month === WHOLE_YEAR ? `Ano de ${year}` : formatMonth(year, month);
 
   return (
     <div className="page">
@@ -152,7 +202,11 @@ export default function Transactions() {
           <p className="muted">Despesas e receitas por mês e por ano.</p>
         </div>
         {!showForm && !editing && (
-          <button type="button" className="button primary" onClick={() => setShowForm(true)}>
+          <button
+            type="button"
+            className="button primary"
+            onClick={() => setShowForm(true)}
+          >
             + Novo lançamento
           </button>
         )}
@@ -177,7 +231,11 @@ export default function Transactions() {
       <div className="filters" role="group" aria-label="Período">
         <label className="field" htmlFor="filter-month">
           <span>Mês</span>
-          <select id="filter-month" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+          <select
+            id="filter-month"
+            value={month}
+            onChange={(e) => setMonth(Number(e.target.value))}
+          >
             <option value={WHOLE_YEAR}>Ano inteiro</option>
             {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
               <option key={m} value={m}>
@@ -188,7 +246,11 @@ export default function Transactions() {
         </label>
         <label className="field" htmlFor="filter-year">
           <span>Ano</span>
-          <select id="filter-year" value={year} onChange={(e) => setYear(Number(e.target.value))}>
+          <select
+            id="filter-year"
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value))}
+          >
             {yearOptions(today.getFullYear()).map((y) => (
               <option key={y} value={y}>
                 {y}
@@ -232,15 +294,24 @@ export default function Transactions() {
           <section className="stat-row" aria-label={`Resumo: ${periodLabel}`}>
             <div className="card stat">
               <span className="muted">Receitas</span>
-              <strong className="positive">{formatCurrency(periodTotals.income, currency)}</strong>
+              <strong className="positive">
+                {formatCurrency(periodTotals.income, currency)}
+              </strong>
             </div>
             <div className="card stat">
               <span className="muted">Despesas</span>
-              <strong className="negative">{formatCurrency(periodTotals.expense, currency)}</strong>
+              <strong className="negative">
+                {formatCurrency(periodTotals.expense, currency)}
+              </strong>
             </div>
             <div className="card stat">
               <span className="muted">Saldo do período</span>
-              <strong>{formatCurrency(periodTotals.income - periodTotals.expense, currency)}</strong>
+              <strong>
+                {formatCurrency(
+                  periodTotals.income - periodTotals.expense,
+                  currency,
+                )}
+              </strong>
             </div>
           </section>
 
@@ -253,9 +324,15 @@ export default function Transactions() {
                 <thead>
                   <tr>
                     <th scope="col">Mês</th>
-                    <th scope="col" className="num">Receitas</th>
-                    <th scope="col" className="num">Despesas</th>
-                    <th scope="col" className="num">Saldo</th>
+                    <th scope="col" className="num">
+                      Receitas
+                    </th>
+                    <th scope="col" className="num">
+                      Despesas
+                    </th>
+                    <th scope="col" className="num">
+                      Saldo
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -273,8 +350,12 @@ export default function Transactions() {
                             {monthName(m.month)}
                           </button>
                         </td>
-                        <td className="value">{formatCurrency(m.income, currency)}</td>
-                        <td className="value">{formatCurrency(m.expense, currency)}</td>
+                        <td className="value">
+                          {formatCurrency(m.income, currency)}
+                        </td>
+                        <td className="value">
+                          {formatCurrency(m.expense, currency)}
+                        </td>
                         <td className={net < 0 ? "value negative" : "value"}>
                           {formatCurrency(net, currency)}
                         </td>
@@ -301,7 +382,10 @@ export default function Transactions() {
                       <th scope="col">Descrição</th>
                       <th scope="col">Categoria</th>
                       <th scope="col">Conta</th>
-                      <th scope="col" className="num">Valor</th>
+                      <th scope="col">Orçamento</th>
+                      <th scope="col" className="num">
+                        Valor
+                      </th>
                       <th scope="col">
                         <span className="visually-hidden">Ações</span>
                       </th>
@@ -310,8 +394,19 @@ export default function Transactions() {
                   <tbody>
                     {records.transactions.map((tx) => {
                       const category =
-                        tx.category_id !== null ? categoriesById.get(tx.category_id) : undefined;
+                        tx.category_id !== null
+                          ? categoriesById.get(tx.category_id)
+                          : undefined;
                       const isIncome = tx.type === "income";
+                      const [txYear, txMonth] = tx.date.split("-").map(Number);
+                      const budget = isIncome
+                        ? undefined
+                        : budgetFor(
+                            budgets,
+                            txYear,
+                            txMonth,
+                            accountsById.get(tx.account_id)?.currency,
+                          );
                       return (
                         <tr key={tx.id}>
                           <td className="nowrap">{formatDate(tx.date)}</td>
@@ -323,8 +418,51 @@ export default function Transactions() {
                               icon={category?.icon}
                             />
                           </td>
-                          <td>{accountsById.get(tx.account_id)?.name ?? "—"}</td>
-                          <td className={isIncome ? "value positive nowrap" : "value negative nowrap"}>
+                          <td>
+                            {accountsById.get(tx.account_id)?.name ?? "—"}
+                          </td>
+                          <td>
+                            {budget && budget.items.length > 0 ? (
+                              <select
+                                className="compact-select budget-link-select"
+                                aria-label={`Categoria do orçamento de ${tx.description}`}
+                                value={tx.budget_item_id ?? ""}
+                                onChange={(e) =>
+                                  changeBudgetLink(
+                                    tx,
+                                    e.target.value
+                                      ? Number(e.target.value)
+                                      : null,
+                                  )
+                                }
+                              >
+                                <option value="">Fora do orçamento</option>
+                                {budget.items.map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span
+                                className="muted"
+                                title={
+                                  isIncome
+                                    ? "Receitas não entram no orçamento"
+                                    : "Sem orçamento neste mês"
+                                }
+                              >
+                                —
+                              </span>
+                            )}
+                          </td>
+                          <td
+                            className={
+                              isIncome
+                                ? "value positive nowrap"
+                                : "value negative nowrap"
+                            }
+                          >
                             {isIncome ? "+ " : "− "}
                             {formatCurrency(tx.amount, currency)}
                           </td>

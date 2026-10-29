@@ -1,4 +1,7 @@
+from datetime import UTC
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import AwareDatetime
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
@@ -26,11 +29,17 @@ def _record(db: Session, movement: AccountMovement) -> AccountMovement:
 def list_movements(
     account_id: int | None = None,
     kind: MovementKind | None = None,
+    created_from: AwareDatetime | None = None,
+    created_before: AwareDatetime | None = None,
     limit: int = Query(default=200, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ) -> list[AccountMovement]:
-    """The movements log, newest first. There is no edit or delete: it is append-only."""
+    """The movements log, newest first. There is no edit or delete: it is append-only.
+
+    `created_from` (inclusive) and `created_before` (exclusive) must carry a timezone, so the
+    client can ask for its own local days.
+    """
     query = select(AccountMovement)
     if account_id is not None:
         query = query.where(
@@ -41,6 +50,11 @@ def list_movements(
         )
     if kind is not None:
         query = query.where(AccountMovement.kind == kind)
+    # Stored values are UTC (SQLite keeps them without an offset), so compare in UTC.
+    if created_from is not None:
+        query = query.where(AccountMovement.created_at >= created_from.astimezone(UTC))
+    if created_before is not None:
+        query = query.where(AccountMovement.created_at < created_before.astimezone(UTC))
     query = query.order_by(AccountMovement.created_at.desc(), AccountMovement.id.desc())
     return list(db.scalars(query.limit(limit).offset(offset)))
 

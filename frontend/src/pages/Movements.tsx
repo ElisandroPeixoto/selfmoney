@@ -18,6 +18,10 @@ function parseKind(value: string | null): MovementKind | undefined {
   return KINDS.find((k) => k === value);
 }
 
+function parseDay(value: string | null): string | undefined {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
+}
+
 function AccountName({ id, name }: { id: number | null; name: string | null }) {
   if (!name) return <span className="muted">—</span>;
   return (
@@ -33,6 +37,10 @@ export default function Movements() {
   const formKind = parseKind(searchParams.get("tipo")) ?? "transfer";
   const accountFilter = Number(searchParams.get("conta")) || undefined;
   const kindFilter = parseKind(searchParams.get("filtro"));
+  const fromFilter = parseDay(searchParams.get("de"));
+  const toFilter = parseDay(searchParams.get("ate"));
+  // Swapped bounds would match nothing; the inputs' min/max make this rare.
+  const datesValid = !fromFilter || !toFilter || fromFilter <= toFilter;
 
   const [accounts, setAccounts] = useState<Account[] | null>(null);
   const [log, setLog] = useState<Movement[] | null>(null);
@@ -49,17 +57,33 @@ export default function Movements() {
   }, [reloadKey]);
 
   useEffect(() => {
+    if (!datesValid) return;
     const controller = new AbortController();
-    fetchMovements({ accountId: accountFilter, kind: kindFilter }, controller.signal)
+    fetchMovements(
+      {
+        accountId: accountFilter,
+        kind: kindFilter,
+        from: fromFilter,
+        to: toFilter,
+      },
+      controller.signal,
+    )
       .then(setLog)
       .catch(() => !controller.signal.aborted && setLoadError(true));
     return () => controller.abort();
-  }, [accountFilter, kindFilter, reloadKey]);
+  }, [accountFilter, kindFilter, fromFilter, toFilter, datesValid, reloadKey]);
 
   function updateParam(key: string, value: string | undefined) {
     const next = new URLSearchParams(searchParams);
     if (value) next.set(key, value);
     else next.delete(key);
+    setSearchParams(next, { replace: true });
+  }
+
+  function clearDates() {
+    const next = new URLSearchParams(searchParams);
+    next.delete("de");
+    next.delete("ate");
     setSearchParams(next, { replace: true });
   }
 
@@ -73,8 +97,8 @@ export default function Movements() {
       <header className="page-header">
         <h1>Movimentações</h1>
         <p className="muted">
-          Transfira entre contas ou adicione e retire dinheiro sem vincular a um mês. Tudo fica
-          registrado no histórico.
+          Transfira entre contas ou adicione e retire dinheiro sem vincular a um
+          mês. Tudo fica registrado no histórico.
         </p>
       </header>
 
@@ -90,7 +114,9 @@ export default function Movements() {
           key={reloadKey}
           accounts={accounts}
           kind={formKind}
-          onKindChange={(kind) => updateParam("tipo", kind === "transfer" ? undefined : kind)}
+          onKindChange={(kind) =>
+            updateParam("tipo", kind === "transfer" ? undefined : kind)
+          }
           onRecorded={handleRecorded}
         />
       )}
@@ -107,13 +133,19 @@ export default function Movements() {
             Histórico de movimentações
           </h2>
         </div>
-        <div className="filters log-filters" role="group" aria-label="Filtrar histórico">
+        <div
+          className="filters log-filters"
+          role="group"
+          aria-label="Filtrar histórico"
+        >
           <label className="field" htmlFor="log-account">
             <span>Conta</span>
             <select
               id="log-account"
               value={accountFilter ?? ""}
-              onChange={(e) => updateParam("conta", e.target.value || undefined)}
+              onChange={(e) =>
+                updateParam("conta", e.target.value || undefined)
+              }
             >
               <option value="">Todas</option>
               {accounts?.map((a) => (
@@ -128,7 +160,9 @@ export default function Movements() {
             <select
               id="log-kind"
               value={kindFilter ?? ""}
-              onChange={(e) => updateParam("filtro", e.target.value || undefined)}
+              onChange={(e) =>
+                updateParam("filtro", e.target.value || undefined)
+              }
             >
               <option value="">Todos</option>
               {KINDS.map((k) => (
@@ -138,13 +172,58 @@ export default function Movements() {
               ))}
             </select>
           </label>
+          <label className="field" htmlFor="log-from">
+            <span>Data inicial</span>
+            <input
+              id="log-from"
+              type="date"
+              value={fromFilter ?? ""}
+              max={toFilter}
+              onChange={(e) => updateParam("de", e.target.value || undefined)}
+            />
+          </label>
+          <label className="field" htmlFor="log-to">
+            <span>Data final</span>
+            <input
+              id="log-to"
+              type="date"
+              value={toFilter ?? ""}
+              min={fromFilter}
+              onChange={(e) => updateParam("ate", e.target.value || undefined)}
+            />
+          </label>
+          {(fromFilter || toFilter) && (
+            <button
+              type="button"
+              className="button filter-clear"
+              onClick={clearDates}
+            >
+              Limpar datas
+            </button>
+          )}
         </div>
 
-        {log === null && !loadError && <p className="muted">Carregando…</p>}
-        {log?.length === 0 && <p className="empty">Nenhuma movimentação registrada.</p>}
-        {log && log.length > 0 && (
+        {!datesValid && (
+          <p role="alert" className="error">
+            A data inicial precisa ser anterior ou igual à data final.
+          </p>
+        )}
+        {datesValid && log === null && !loadError && (
+          <p className="muted">Carregando…</p>
+        )}
+        {datesValid && log?.length === 0 && (
+          <p className="empty">
+            {fromFilter || toFilter
+              ? "Nenhuma movimentação neste período."
+              : "Nenhuma movimentação registrada."}
+          </p>
+        )}
+        {datesValid && log && log.length > 0 && (
           <div className="table-scroll">
-            <table className="data-table" aria-label="Histórico de movimentações">
+            <table
+              className="data-table"
+              aria-label="Histórico de movimentações"
+            >
               <thead>
                 <tr>
                   <th scope="col">Data e hora</th>
@@ -162,15 +241,25 @@ export default function Movements() {
                   <tr key={m.id}>
                     <td className="nowrap">{formatDateTime(m.created_at)}</td>
                     <td>
-                      <span className={`kind-badge kind-${m.kind}`}>{KIND_LABELS[m.kind]}</span>
+                      <span className={`kind-badge kind-${m.kind}`}>
+                        {KIND_LABELS[m.kind]}
+                      </span>
                     </td>
                     <td>
-                      <AccountName id={m.from_account_id} name={m.from_account_name} />
+                      <AccountName
+                        id={m.from_account_id}
+                        name={m.from_account_name}
+                      />
                     </td>
                     <td>
-                      <AccountName id={m.to_account_id} name={m.to_account_name} />
+                      <AccountName
+                        id={m.to_account_id}
+                        name={m.to_account_name}
+                      />
                     </td>
-                    <td className="value nowrap">{formatCurrency(m.amount, m.currency)}</td>
+                    <td className="value nowrap">
+                      {formatCurrency(m.amount, m.currency)}
+                    </td>
                     <td className="reason-cell">{m.reason}</td>
                   </tr>
                 ))}

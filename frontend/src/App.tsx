@@ -6,6 +6,7 @@ import Budgets from "./pages/Budgets";
 import Categories from "./pages/Categories";
 import Dashboard from "./pages/Dashboard";
 import Movements from "./pages/Movements";
+import Reports from "./pages/Reports";
 import Transactions from "./pages/Transactions";
 
 export default function App() {
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="/lancamentos" element={<Transactions />} />
           <Route path="/orcamentos" element={<Budgets />} />
           <Route path="/orcamentos/:budgetId" element={<Budgets />} />
+          <Route path="/relatorios" element={<Reports />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

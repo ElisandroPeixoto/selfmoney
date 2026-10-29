@@ -85,6 +85,13 @@ export const MoonIcon = () => (
   </Icon>
 );
 
+export const ReportIcon = () => (
+  <Icon>
+    <path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8Z" />
+    <path d="M14 3v5h5M9 17v-3M12 17v-6M15 17v-2" />
+  </Icon>
+);
+
 export const EditIcon = () => (
   <Icon>
     <path d="M12 20h9" />

@@ -9,12 +9,14 @@ Sistema de gestão financeira pessoal.
 ## Funcionalidades (MVP)
 
 - Barra lateral recolhível (só ícones), com Dashboard, Lançamentos, Orçamentos, Movimentações,
-  Contas e Categorias
+  Contas, Categorias e Relatórios
 - Gráfico de gastos do mês por categoria (rosca + tabela com valores e %)
+- Gráfico de barras de **receitas vs despesas**, mês a mês, dentro de um ano (com totais do ano)
 - Saldo atual de cada conta e saldo total (um total por moeda)
 - **Lançamentos:** registros de despesas e receitas por mês ou pelo ano inteiro, com totais do período
   e resumo mês a mês; adicionar despesa/receita escolhendo mês, ano, dia, categoria e conta; editar e
-  excluir lançamentos
+  excluir lançamentos; associar uma despesa a uma categoria do orçamento do mês (no formulário ou
+  direto na lista)
 - **Contas:** adicionar, renomear, excluir (junto com seus lançamentos), escolher a moeda (BRL, USD, EUR)
   e o banco (Nubank, Banco do Brasil, Itaú), com o logo do banco
 - **Categorias:** separadas em **despesas** e **receitas**; adicionar, remover (os lançamentos ficam
@@ -27,8 +29,12 @@ Sistema de gestão financeira pessoal.
   (ou copiada direto de outro orçamento)
 - **Movimentações:** transferir dinheiro entre contas (da mesma moeda), adicionar ou retirar dinheiro
   de uma conta sem vincular a um mês. Toda movimentação exige uma **justificativa** e fica
-  registrada num **histórico** (log) filtrável por conta e tipo. O histórico não pode ser editado
+  registrada num **histórico** (log) filtrável por conta, tipo e período (data inicial/final). O histórico não pode ser editado
   nem apagado, e continua legível mesmo se a conta for excluída
+- **Relatórios:** relatório mensal em **PDF** (por moeda) com receitas, despesas, saldo e taxa de
+  economia comparados ao mês anterior, destaques, gráficos (receitas vs despesas dos últimos 6 meses,
+  despesas por categoria, uso do orçamento), receitas por categoria, maiores despesas, saldo de cada
+  conta no momento da geração, movimentações e lançamentos do mês
 - Alternância entre modo claro e escuro (persistida no navegador)
 - Fonte serifada (Source Serif 4, servida localmente via `@fontsource`)
 
@@ -42,7 +48,8 @@ backend/
     database.py      # engine e sessão SQLAlchemy
     models.py        # Account, Category, Transaction, Budget, AccountMovement...
     schemas.py       # modelos Pydantic (contrato da API)
-    services.py      # saldos, resumos e totais dos orçamentos
+    services.py      # saldos, resumos, totais dos orçamentos e dados do relatório mensal
+    report_pdf.py    # relatório mensal em PDF (reportlab)
     routers/         # endpoints REST
     seed.py          # dados de exemplo para desenvolvimento
   alembic/           # migrações do banco
@@ -52,7 +59,7 @@ frontend/
     api/             # cliente HTTP + tipos gerados do OpenAPI (schema.d.ts)
     assets/banks/    # logos dos bancos (SVG)
     components/      # Sidebar, SpendingChart, TransactionForm, IconPicker, BankLogo...
-    pages/           # Dashboard, Lançamentos, Orçamentos, Movimentações, Contas, Categorias
+    pages/           # Dashboard, Lançamentos, Orçamentos, Movimentações, Contas, Categorias, Relatórios
     theme/           # contexto de tema claro/escuro
     lib/             # formatação (moeda, %, mês) e opções (bancos, moedas, paleta)
 ```
@@ -98,11 +105,12 @@ API em http://localhost:8000 — documentação interativa em http://localhost:8
 | POST | `/api/budgets/{id}/save-template` | Salvar a estrutura do orçamento como modelo (`name`) |
 | GET | `/api/budget-templates` | Listar modelos |
 | DELETE | `/api/budget-templates/{id}` | Excluir modelo |
-| GET | `/api/movements?account_id=&kind=` | Histórico de movimentações (mais recentes primeiro) |
+| GET | `/api/movements?account_id=&kind=&created_from=&created_before=` | Histórico de movimentações (mais recentes primeiro); datas com fuso, `created_before` exclusivo |
 | POST | `/api/movements/transfer` | Transferir entre contas (`from_account_id`, `to_account_id`, `amount`, `reason`) |
 | POST | `/api/movements/deposit` | Adicionar dinheiro a uma conta (`account_id`, `amount`, `reason`) |
 | POST | `/api/movements/withdrawal` | Retirar dinheiro de uma conta (`account_id`, `amount`, `reason`) |
 | GET | `/api/reports/monthly?year=&currency=` | Receitas e despesas de cada um dos 12 meses do ano |
+| GET | `/api/reports/monthly-pdf?year=&month=&currency=&utc_offset=` | Relatório do mês em PDF (download); `utc_offset` em minutos (ex.: `-180`) |
 | GET | `/api/dashboard/summary?year=&month=&currency=` | Saldos por moeda e gastos do mês por categoria na moeda escolhida (padrão: mês atual, BRL) |
 
 Valores monetários trafegam como strings decimais (ex.: `"1234.50"`) para evitar erros de arredondamento.

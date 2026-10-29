@@ -166,6 +166,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reports/monthly-pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Monthly Report Pdf
+         * @description Monthly report (income, expenses, budget, account balances) as a PDF download.
+         */
+        get: operations["get_monthly_report_pdf_api_reports_monthly_pdf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/budgets": {
         parameters: {
             query?: never;
@@ -298,6 +318,9 @@ export interface paths {
         /**
          * List Movements
          * @description The movements log, newest first. There is no edit or delete: it is append-only.
+         *
+         *     `created_from` (inclusive) and `created_before` (exclusive) must carry a timezone, so the
+         *     client can ask for its own local days.
          */
         get: operations["list_movements_api_movements_get"];
         put?: never;
@@ -1181,6 +1204,41 @@ export interface operations {
             };
         };
     };
+    get_monthly_report_pdf_api_reports_monthly_pdf_get: {
+        parameters: {
+            query: {
+                year: number;
+                month: number;
+                currency?: components["schemas"]["Currency"];
+                /** @description Reader's offset from UTC in minutes (e.g. -180 for Brasília) */
+                utc_offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report as a PDF */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_budgets_api_budgets_get: {
         parameters: {
             query?: never;
@@ -1486,6 +1544,8 @@ export interface operations {
             query?: {
                 account_id?: number | null;
                 kind?: components["schemas"]["MovementKind"] | null;
+                created_from?: string | null;
+                created_before?: string | null;
                 limit?: number;
                 offset?: number;
             };

@@ -1,6 +1,10 @@
-from datetime import date
+from datetime import UTC, date, datetime
 
 from fastapi.testclient import TestClient
+from sqlalchemy import update
+from sqlalchemy.orm import Session
+
+from app.models import AccountMovement
 
 
 def post(client: TestClient, path: str, payload: dict, expected: int = 201) -> dict:
@@ -115,6 +119,47 @@ def test_log_lists_newest_first_and_filters(client: TestClient) -> None:
     assert reasons(account_id=b["id"]) == ["segundo"]
     assert reasons(account_id=a["id"]) == ["segundo", "primeiro"]
     assert reasons(kind="withdrawal") == ["terceiro"]
+
+
+def test_log_filters_by_date_range(client: TestClient, db_session: Session) -> None:
+    acc = account(client, "Conta", "100")
+    times = {
+        "fim de março": datetime(2026, 3, 31, 23, 30, tzinfo=UTC),
+        "abril": datetime(2026, 4, 10, 12, 0, tzinfo=UTC),
+        "maio": datetime(2026, 5, 2, 9, 0, tzinfo=UTC),
+    }
+    for reason, created_at in times.items():
+        moved = post(
+            client,
+            "/api/movements/deposit",
+            {"account_id": acc["id"], "amount": "1", "reason": reason},
+        )
+        db_session.execute(
+            update(AccountMovement)
+            .where(AccountMovement.id == moved["id"])
+            .values(created_at=created_at)
+        )
+    db_session.commit()
+
+    def reasons(**params: str) -> list[str]:
+        response = client.get("/api/movements", params=params)
+        assert response.status_code == 200, response.text
+        return [m["reason"] for m in response.json()]
+
+    assert reasons(created_from="2026-04-01T00:00:00+00:00") == ["maio", "abril"]
+    assert reasons(created_before="2026-05-01T00:00:00+00:00") == ["abril", "fim de março"]
+    assert reasons(
+        created_from="2026-04-01T00:00:00+00:00", created_before="2026-05-01T00:00:00+00:00"
+    ) == ["abril"]
+    # 23:30 UTC on 31/03 is still March 31 in UTC, but already April 1 at UTC+1.
+    assert reasons(
+        created_from="2026-04-01T00:00:00+01:00", created_before="2026-04-02T00:00:00+01:00"
+    ) == ["fim de março"]
+
+
+def test_log_date_filter_needs_a_timezone(client: TestClient) -> None:
+    response = client.get("/api/movements", params={"created_from": "2026-04-01T00:00:00"})
+    assert response.status_code == 422
 
 
 def test_log_survives_account_deletion(client: TestClient) -> None:

@@ -48,6 +48,7 @@ describe("Sidebar", () => {
       "Lançamentos",
       "Movimentações",
       "Orçamentos",
+      "Relatórios",
     ]);
   });
 
