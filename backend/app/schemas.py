@@ -262,3 +262,106 @@ class MovementRead(BaseModel):
         if value.tzinfo is None:
             value = value.replace(tzinfo=UTC)
         return value.isoformat()
+
+
+class AuthStatus(BaseModel):
+    auth_required: bool
+    authenticated: bool
+
+
+class LoginRequest(BaseModel):
+    password: str = Field(max_length=200)
+
+
+class LoginResponse(BaseModel):
+    token: str
+    expires_at: datetime
+
+
+DayOfMonth = Field(default=None, ge=1, le=31)
+
+
+class CreditCardCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    account_id: int | None = None
+    # Ignored when an account is linked: the card uses the account's currency.
+    currency: Currency = Currency.BRL
+    due_day: int | None = DayOfMonth
+    auto_export: bool = False
+
+
+class CreditCardUpdate(BaseModel):
+    """Partial update: only fields present in the request body are changed."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    account_id: int | None = None
+    currency: Currency | None = None
+    due_day: int | None = DayOfMonth
+    auto_export: bool | None = None
+
+
+class CreditCardRead(BaseModel):
+    id: int
+    name: str
+    account_id: int | None
+    account_name: str | None
+    currency: Currency
+    due_day: int | None
+    auto_export: bool
+    # Installments not exported to the transactions yet, in any month.
+    pending_total: Decimal
+
+
+class CardPurchaseCreate(BaseModel):
+    description: str = Field(min_length=1, max_length=150)
+    amount: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
+    installments: int = Field(default=1, ge=1, le=48)
+    date: date
+    # Bill of the first installment; defaults to the month after the purchase.
+    first_year: int | None = Field(default=None, ge=2000, le=2100)
+    first_month: int | None = Field(default=None, ge=1, le=12)
+    category_id: int | None = None
+
+    @model_validator(mode="after")
+    def whole_first_bill(self) -> "CardPurchaseCreate":
+        if (self.first_year is None) != (self.first_month is None):
+            raise ValueError("Send both first_year and first_month, or neither")
+        return self
+
+
+class CardPurchaseRead(BaseModel):
+    id: int
+    card_id: int
+    description: str
+    amount: Decimal
+    installments: int
+    installment_amount: Decimal
+    date: date
+    first_year: int
+    first_month: int
+    category_id: int | None
+    exported_installments: int
+
+
+class CardInstallmentRead(BaseModel):
+    purchase_id: int
+    description: str
+    number: int
+    installments: int
+    amount: Decimal
+    category_id: int | None
+    # The exported expense, if any.
+    transaction_id: int | None
+
+
+class CardBillRead(BaseModel):
+    year: int
+    month: int
+    total: Decimal
+    pending_total: Decimal
+    installments: list[CardInstallmentRead]
+
+
+class CardExportResult(BaseModel):
+    created: int
+    bill: CardBillRead

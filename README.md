@@ -9,7 +9,7 @@ Sistema de gestão financeira pessoal.
 ## Funcionalidades (MVP)
 
 - Barra lateral recolhível (só ícones), com Dashboard, Lançamentos, Orçamentos, Movimentações,
-  Contas, Categorias e Relatórios
+  Contas, Categorias, Relatórios e Cartão de Crédito
 - Gráfico de gastos do mês por categoria (rosca + tabela com valores e %)
 - Gráfico de barras de **receitas vs despesas**, mês a mês, dentro de um ano (com totais do ano)
 - Saldo atual de cada conta e saldo total (um total por moeda)
@@ -31,10 +31,17 @@ Sistema de gestão financeira pessoal.
   de uma conta sem vincular a um mês. Toda movimentação exige uma **justificativa** e fica
   registrada num **histórico** (log) filtrável por conta, tipo e período (data inicial/final). O histórico não pode ser editado
   nem apagado, e continua legível mesmo se a conta for excluída
+- **Cartão de Crédito:** cartões vinculados a uma conta, compras à vista ou parceladas (até 48x,
+  com categoria), faturas mês a mês (gráfico dos próximos 12 meses e detalhe de cada fatura) e
+  exportação das parcelas para Lançamentos como despesas da conta vinculada, com a categoria da
+  compra. A exportação é por fatura (botão) ou automática a cada compra nova; cada parcela é
+  exportada uma vez só
 - **Relatórios:** relatório mensal em **PDF** (por moeda) com receitas, despesas, saldo e taxa de
   economia comparados ao mês anterior, destaques, gráficos (receitas vs despesas dos últimos 6 meses,
   despesas por categoria, uso do orçamento), receitas por categoria, maiores despesas, saldo de cada
   conta no momento da geração, movimentações e lançamentos do mês
+- **Acesso por senha** (opcional em desenvolvimento, obrigatório em produção): tela de login,
+  sessão de 30 dias por aparelho e botão **Sair**. A senha fica na variável `APP_PASSWORD`
 - Alternância entre modo claro e escuro (persistida no navegador)
 - Fonte serifada (Source Serif 4, servida localmente via `@fontsource`)
 
@@ -59,7 +66,8 @@ frontend/
     api/             # cliente HTTP + tipos gerados do OpenAPI (schema.d.ts)
     assets/banks/    # logos dos bancos (SVG)
     components/      # Sidebar, SpendingChart, TransactionForm, IconPicker, BankLogo...
-    pages/           # Dashboard, Lançamentos, Orçamentos, Movimentações, Contas, Categorias, Relatórios
+    pages/           # Dashboard, Lançamentos, Orçamentos, Movimentações, Contas, Categorias, Relatórios,
+                     # Cartão de Crédito
     theme/           # contexto de tema claro/escuro
     lib/             # formatação (moeda, %, mês) e opções (bancos, moedas, paleta)
 ```
@@ -109,7 +117,15 @@ API em http://localhost:8000 — documentação interativa em http://localhost:8
 | POST | `/api/movements/transfer` | Transferir entre contas (`from_account_id`, `to_account_id`, `amount`, `reason`) |
 | POST | `/api/movements/deposit` | Adicionar dinheiro a uma conta (`account_id`, `amount`, `reason`) |
 | POST | `/api/movements/withdrawal` | Retirar dinheiro de uma conta (`account_id`, `amount`, `reason`) |
+| GET/POST | `/api/cards` | Listar (com o total ainda não exportado) / criar cartões (`name`, `account_id`, `currency`, `due_day`, `auto_export`) |
+| PATCH/DELETE | `/api/cards/{id}` | Editar / excluir cartão e suas compras (despesas já exportadas ficam em Lançamentos) |
+| GET/POST | `/api/cards/{id}/purchases` | Listar / adicionar compra (`description`, `amount` total, `installments`, `date`, `category_id`; opcional `first_year`/`first_month`, padrão: mês seguinte à compra) |
+| DELETE | `/api/cards/{id}/purchases/{purchase_id}` | Excluir compra |
+| GET | `/api/cards/{id}/bills?year=&month=&months=` | Faturas de `months` meses seguidos a partir de `year`/`month`, com as parcelas de cada uma |
+| POST | `/api/cards/{id}/bills/{year}/{month}/export` | Lança as parcelas pendentes da fatura como despesas da conta vinculada (409 sem conta) |
 | GET | `/api/reports/monthly?year=&currency=` | Receitas e despesas de cada um dos 12 meses do ano |
+| GET | `/api/auth/status` | Se o servidor exige senha e se o token enviado é válido |
+| POST | `/api/auth/login` | Troca a senha (`password`) por um token de sessão (`token`, `expires_at`) |
 | GET | `/api/reports/monthly-pdf?year=&month=&currency=&utc_offset=` | Relatório do mês em PDF (download); `utc_offset` em minutos (ex.: `-180`) |
 | GET | `/api/dashboard/summary?year=&month=&currency=` | Saldos por moeda e gastos do mês por categoria na moeda escolhida (padrão: mês atual, BRL) |
 
@@ -170,6 +186,9 @@ simplificadas nas cores de cada banco. Para usar os logos oficiais, substitua es
 
 ### Produção (Supabase / PostgreSQL)
 
+Para publicar o app (API e site no Render, banco no Supabase), siga o passo a passo em
+[DEPLOY.md](DEPLOY.md). Resumo da configuração do banco:
+
 1. No Supabase, copie a connection string em **Project Settings → Database → Connection string (URI)**.
 2. Instale o driver: `pip install -e ".[postgres]"`.
 3. No `.env` de produção (nunca commitado):
@@ -178,7 +197,10 @@ simplificadas nas cores de cada banco. Para usar os logos oficiais, substitua es
    DATABASE_URL=postgresql://postgres.<ref>:<senha>@aws-0-<regiao>.pooler.supabase.com:6543/postgres
    CORS_ORIGINS=https://seu-frontend.com
    AUTO_CREATE_TABLES=false
+   APP_PASSWORD=<senha longa para entrar no app>
+   SECRET_KEY=<valor aleatório longo>
    ```
+   Com `APP_ENV=production`, a API não inicia sem `APP_PASSWORD` e `SECRET_KEY`.
    URLs `postgres://`/`postgresql://` são convertidas automaticamente para o driver `psycopg`, e prepared statements são desativados para funcionar com o pooler do Supabase.
 4. Aplique as migrações: `alembic upgrade head`.
 

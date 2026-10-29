@@ -20,15 +20,10 @@ import CategoryLabel from "../components/CategoryLabel";
 import { EditIcon, TrashIcon } from "../components/icons";
 import TransactionForm from "../components/TransactionForm";
 import { budgetFor } from "../lib/budgets";
-import {
-  formatCurrency,
-  formatDate,
-  formatMonth,
-  monthName,
-} from "../lib/format";
+import { formatCurrency, formatDate, formatMonth, monthName } from "../lib/format";
+import { UNCATEGORIZED_COLOR } from "../lib/options";
 
 const WHOLE_YEAR = 0;
-const UNCATEGORIZED_COLOR = "#94a3b8";
 
 type Records =
   | { status: "loading" }
@@ -66,9 +61,7 @@ export default function Transactions() {
         setCategories(cats);
         setBudgets(buds);
       })
-      .catch(
-        () => !controller.signal.aborted && setRecords({ status: "error" }),
-      );
+      .catch(() => !controller.signal.aborted && setRecords({ status: "error" }));
     return () => controller.abort();
   }, []);
 
@@ -82,23 +75,13 @@ export default function Transactions() {
       ),
       fetchMonthlyTotals(year, currency, controller.signal),
     ])
-      .then(([transactions, months]) =>
-        setRecords({ status: "ready", transactions, months }),
-      )
-      .catch(
-        () => !controller.signal.aborted && setRecords({ status: "error" }),
-      );
+      .then(([transactions, months]) => setRecords({ status: "ready", transactions, months }))
+      .catch(() => !controller.signal.aborted && setRecords({ status: "error" }));
     return () => controller.abort();
   }, [year, month, currency, reloadKey]);
 
-  const accountsById = useMemo(
-    () => new Map(accounts?.map((a) => [a.id, a])),
-    [accounts],
-  );
-  const categoriesById = useMemo(
-    () => new Map(categories.map((c) => [c.id, c])),
-    [categories],
-  );
+  const accountsById = useMemo(() => new Map(accounts?.map((a) => [a.id, a])), [accounts]);
+  const categoriesById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
   const currencies = useMemo(
     () => [...new Set(accounts?.map((a) => a.currency) ?? [])].sort(),
     [accounts],
@@ -115,9 +98,7 @@ export default function Transactions() {
     setEditing(tx);
     // The form opens above the filters; bring it into view.
     requestAnimationFrame(() =>
-      document
-        .getElementById("transaction-form-title")
-        ?.scrollIntoView({ block: "center" }),
+      document.getElementById("transaction-form-title")?.scrollIntoView({ block: "center" }),
     );
   }
 
@@ -133,19 +114,14 @@ export default function Transactions() {
       visible
         ? `Lançamento ${verb}.`
         : `Lançamento ${verb} em ${formatMonth(txYear, txMonth)}` +
-            (account && account.currency !== currency
-              ? ` (${account.currency})`
-              : "") +
+            (account && account.currency !== currency ? ` (${account.currency})` : "") +
             ".",
     );
     setEditing(null);
     setReloadKey((k) => k + 1);
   }
 
-  async function changeBudgetLink(
-    tx: Transaction,
-    budgetItemId: number | null,
-  ) {
+  async function changeBudgetLink(tx: Transaction, budgetItemId: number | null) {
     try {
       const saved = await updateTransaction(tx.id, {
         budget_item_id: budgetItemId,
@@ -155,9 +131,7 @@ export default function Transactions() {
         current.status === "ready"
           ? {
               ...current,
-              transactions: current.transactions.map((t) =>
-                t.id === saved.id ? saved : t,
-              ),
+              transactions: current.transactions.map((t) => (t.id === saved.id ? saved : t)),
             }
           : current,
       );
@@ -191,8 +165,7 @@ export default function Transactions() {
         )
       : null;
 
-  const periodLabel =
-    month === WHOLE_YEAR ? `Ano de ${year}` : formatMonth(year, month);
+  const periodLabel = month === WHOLE_YEAR ? `Ano de ${year}` : formatMonth(year, month);
 
   return (
     <div className="page">
@@ -202,11 +175,7 @@ export default function Transactions() {
           <p className="muted">Despesas e receitas por mês e por ano.</p>
         </div>
         {!showForm && !editing && (
-          <button
-            type="button"
-            className="button primary"
-            onClick={() => setShowForm(true)}
-          >
+          <button type="button" className="button primary" onClick={() => setShowForm(true)}>
             + Novo lançamento
           </button>
         )}
@@ -246,11 +215,7 @@ export default function Transactions() {
         </label>
         <label className="field" htmlFor="filter-year">
           <span>Ano</span>
-          <select
-            id="filter-year"
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-          >
+          <select id="filter-year" value={year} onChange={(e) => setYear(Number(e.target.value))}>
             {yearOptions(today.getFullYear()).map((y) => (
               <option key={y} value={y}>
                 {y}
@@ -294,23 +259,16 @@ export default function Transactions() {
           <section className="stat-row" aria-label={`Resumo: ${periodLabel}`}>
             <div className="card stat">
               <span className="muted">Receitas</span>
-              <strong className="positive">
-                {formatCurrency(periodTotals.income, currency)}
-              </strong>
+              <strong className="positive">{formatCurrency(periodTotals.income, currency)}</strong>
             </div>
             <div className="card stat">
               <span className="muted">Despesas</span>
-              <strong className="negative">
-                {formatCurrency(periodTotals.expense, currency)}
-              </strong>
+              <strong className="negative">{formatCurrency(periodTotals.expense, currency)}</strong>
             </div>
             <div className="card stat">
               <span className="muted">Saldo do período</span>
               <strong>
-                {formatCurrency(
-                  periodTotals.income - periodTotals.expense,
-                  currency,
-                )}
+                {formatCurrency(periodTotals.income - periodTotals.expense, currency)}
               </strong>
             </div>
           </section>
@@ -350,12 +308,8 @@ export default function Transactions() {
                             {monthName(m.month)}
                           </button>
                         </td>
-                        <td className="value">
-                          {formatCurrency(m.income, currency)}
-                        </td>
-                        <td className="value">
-                          {formatCurrency(m.expense, currency)}
-                        </td>
+                        <td className="value">{formatCurrency(m.income, currency)}</td>
+                        <td className="value">{formatCurrency(m.expense, currency)}</td>
                         <td className={net < 0 ? "value negative" : "value"}>
                           {formatCurrency(net, currency)}
                         </td>
@@ -394,9 +348,7 @@ export default function Transactions() {
                   <tbody>
                     {records.transactions.map((tx) => {
                       const category =
-                        tx.category_id !== null
-                          ? categoriesById.get(tx.category_id)
-                          : undefined;
+                        tx.category_id !== null ? categoriesById.get(tx.category_id) : undefined;
                       const isIncome = tx.type === "income";
                       const [txYear, txMonth] = tx.date.split("-").map(Number);
                       const budget = isIncome
@@ -418,9 +370,7 @@ export default function Transactions() {
                               icon={category?.icon}
                             />
                           </td>
-                          <td>
-                            {accountsById.get(tx.account_id)?.name ?? "—"}
-                          </td>
+                          <td>{accountsById.get(tx.account_id)?.name ?? "—"}</td>
                           <td>
                             {budget && budget.items.length > 0 ? (
                               <select
@@ -430,9 +380,7 @@ export default function Transactions() {
                                 onChange={(e) =>
                                   changeBudgetLink(
                                     tx,
-                                    e.target.value
-                                      ? Number(e.target.value)
-                                      : null,
+                                    e.target.value ? Number(e.target.value) : null,
                                   )
                                 }
                               >
@@ -457,11 +405,7 @@ export default function Transactions() {
                             )}
                           </td>
                           <td
-                            className={
-                              isIncome
-                                ? "value positive nowrap"
-                                : "value negative nowrap"
-                            }
+                            className={isIncome ? "value positive nowrap" : "value negative nowrap"}
                           >
                             {isIncome ? "+ " : "− "}
                             {formatCurrency(tx.amount, currency)}

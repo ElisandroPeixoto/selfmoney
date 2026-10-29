@@ -1,10 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 
-import {
-  downloadMonthlyReport,
-  fetchAccounts,
-  type Currency,
-} from "../api/client";
+import { downloadMonthlyReport, fetchAccounts, type Currency } from "../api/client";
 import { saveFile } from "../lib/download";
 import { formatMonth, monthName } from "../lib/format";
 
@@ -56,11 +52,7 @@ export default function Reports() {
     event.preventDefault();
     setStatus({ state: "generating" });
     try {
-      const { blob, filename } = await downloadMonthlyReport(
-        year,
-        month,
-        currency,
-      );
+      const { blob, filename } = await downloadMonthlyReport(year, month, currency);
       saveFile(blob, filename);
       setStatus({ state: "done", filename, period: formatMonth(year, month) });
     } catch (error) {
@@ -84,11 +76,7 @@ export default function Reports() {
         <h2 id="monthly-report-title" className="card-title">
           Relatório mensal em PDF
         </h2>
-        <form
-          className="report-form"
-          aria-label="Gerar relatório mensal"
-          onSubmit={handleSubmit}
-        >
+        <form className="report-form" aria-label="Gerar relatório mensal" onSubmit={handleSubmit}>
           <div className="filters">
             <label className="field" htmlFor="report-month">
               <span>Mês</span>
@@ -135,11 +123,7 @@ export default function Reports() {
                 </select>
               </label>
             )}
-            <button
-              type="submit"
-              className="button primary report-submit"
-              disabled={generating}
-            >
+            <button type="submit" className="button primary report-submit" disabled={generating}>
               {generating ? "Gerando…" : "Gerar PDF"}
             </button>
           </div>

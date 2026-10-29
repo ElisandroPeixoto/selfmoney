@@ -76,9 +76,7 @@ describe("Movements page", () => {
     setup({ "GET /api/categories": () => ({ body: [] }) });
     renderApp("/categorias");
     await userEvent.click(screen.getByRole("link", { name: /movimentações/i }));
-    expect(
-      screen.getByRole("heading", { level: 1, name: "Movimentações" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Movimentações" })).toBeInTheDocument();
   });
 
   it("transfers between accounts after a justification and confirmation", async () => {
@@ -101,10 +99,7 @@ describe("Movements page", () => {
     await userEvent.type(within(form).getByLabelText("Valor"), "25000");
     const submit = within(form).getByRole("button", { name: "Transferir" });
     expect(submit).toBeDisabled();
-    await userEvent.type(
-      within(form).getByLabelText(/justificativa/i),
-      "Reserva",
-    );
+    await userEvent.type(within(form).getByLabelText(/justificativa/i), "Reserva");
     expect(within(form).getByText("R$ 300,00")).toBeInTheDocument(); // Poupança after
     await userEvent.click(submit);
 
@@ -134,19 +129,12 @@ describe("Movements page", () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     renderApp("/movimentacoes");
 
-    await userEvent.click(
-      await screen.findByRole("tab", { name: "Adicionar dinheiro" }),
-    );
+    await userEvent.click(await screen.findByRole("tab", { name: "Adicionar dinheiro" }));
     const form = screen.getByRole("form", { name: "Adicionar dinheiro" });
     await userEvent.selectOptions(within(form).getByLabelText("Conta"), "2");
     await userEvent.type(within(form).getByLabelText("Valor"), "8000");
-    await userEvent.type(
-      within(form).getByLabelText(/justificativa/i),
-      "Reembolso do almoço",
-    );
-    await userEvent.click(
-      within(form).getByRole("button", { name: "Adicionar" }),
-    );
+    await userEvent.type(within(form).getByLabelText(/justificativa/i), "Reembolso do almoço");
+    await userEvent.click(within(form).getByRole("button", { name: "Adicionar" }));
 
     const post = spy.mock.calls.find(([, init]) => init?.method === "POST");
     expect(body(post?.[1])).toEqual({
@@ -166,16 +154,9 @@ describe("Movements page", () => {
     await userEvent.type(within(form).getByLabelText("Valor"), "7500");
     expect(within(form).getByText(/saldo ficará negativo/)).toBeInTheDocument();
 
-    await userEvent.type(
-      within(form).getByLabelText(/justificativa/i),
-      "Emergência",
-    );
-    await userEvent.click(
-      within(form).getByRole("button", { name: "Retirar" }),
-    );
-    expect(spy.mock.calls.some(([, init]) => init?.method === "POST")).toBe(
-      false,
-    );
+    await userEvent.type(within(form).getByLabelText(/justificativa/i), "Emergência");
+    await userEvent.click(within(form).getByRole("button", { name: "Retirar" }));
+    expect(spy.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
   });
 
   it("shows the movement log, including accounts that were deleted", async () => {
@@ -198,23 +179,17 @@ describe("Movements page", () => {
     renderApp("/movimentacoes?conta=2");
 
     await screen.findByRole("table", { name: "Histórico de movimentações" });
-    expect(
-      screen.getByLabelText("Conta", { selector: "#log-account" }),
-    ).toHaveValue("2");
+    expect(screen.getByLabelText("Conta", { selector: "#log-account" })).toHaveValue("2");
     await userEvent.selectOptions(screen.getByLabelText("Tipo"), "deposit");
 
-    const last = [...spy.mock.calls]
-      .reverse()
-      .find(([u]) => String(u).includes("/movements"));
+    const last = [...spy.mock.calls].reverse().find(([u]) => String(u).includes("/movements"));
     const url = new URL(String(last?.[0]), "http://localhost");
     expect(url.searchParams.get("account_id")).toBe("2");
     expect(url.searchParams.get("kind")).toBe("deposit");
   });
 
   function lastLogUrl(spy: ReturnType<typeof setup>): URL {
-    const last = [...spy.mock.calls]
-      .reverse()
-      .find(([u]) => String(u).includes("/movements"));
+    const last = [...spy.mock.calls].reverse().find(([u]) => String(u).includes("/movements"));
     return new URL(String(last?.[0]), "http://localhost");
   }
 
@@ -222,9 +197,7 @@ describe("Movements page", () => {
     const spy = setup();
     renderApp("/movimentacoes");
     await screen.findByRole("table", { name: "Histórico de movimentações" });
-    expect(
-      screen.queryByRole("button", { name: "Limpar datas" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Limpar datas" })).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Data inicial"), {
       target: { value: "2026-10-01" },
@@ -235,20 +208,10 @@ describe("Movements page", () => {
 
     // Whole local days: from the start of the first to the start of the day after the last.
     const url = lastLogUrl(spy);
-    expect(url.searchParams.get("created_from")).toBe(
-      new Date(2026, 9, 1).toISOString(),
-    );
-    expect(url.searchParams.get("created_before")).toBe(
-      new Date(2026, 9, 16).toISOString(),
-    );
-    expect(screen.getByLabelText("Data inicial")).toHaveAttribute(
-      "max",
-      "2026-10-15",
-    );
-    expect(screen.getByLabelText("Data final")).toHaveAttribute(
-      "min",
-      "2026-10-01",
-    );
+    expect(url.searchParams.get("created_from")).toBe(new Date(2026, 9, 1).toISOString());
+    expect(url.searchParams.get("created_before")).toBe(new Date(2026, 9, 16).toISOString());
+    expect(screen.getByLabelText("Data inicial")).toHaveAttribute("max", "2026-10-15");
+    expect(screen.getByLabelText("Data final")).toHaveAttribute("min", "2026-10-01");
 
     await userEvent.click(screen.getByRole("button", { name: "Limpar datas" }));
     expect(screen.getByLabelText("Data inicial")).toHaveValue("");
@@ -259,9 +222,7 @@ describe("Movements page", () => {
     const spy = setup({ "GET /api/movements": () => ({ body: [] }) });
     renderApp("/movimentacoes?de=2026-04-01");
 
-    expect(
-      await screen.findByText("Nenhuma movimentação neste período."),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Nenhuma movimentação neste período.")).toBeInTheDocument();
     expect(screen.getByLabelText("Data inicial")).toHaveValue("2026-04-01");
     expect(lastLogUrl(spy).searchParams.has("created_before")).toBe(false);
   });
@@ -273,8 +234,6 @@ describe("Movements page", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "A data inicial precisa ser anterior ou igual à data final.",
     );
-    expect(spy.mock.calls.some(([u]) => String(u).includes("/movements"))).toBe(
-      false,
-    );
+    expect(spy.mock.calls.some(([u]) => String(u).includes("/movements"))).toBe(false);
   });
 });

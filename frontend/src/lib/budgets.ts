@@ -7,7 +7,5 @@ export function budgetFor(
   month: number,
   currency: Currency | undefined,
 ): Budget | undefined {
-  return budgets.find(
-    (b) => b.year === year && b.month === month && b.currency === currency,
-  );
+  return budgets.find((b) => b.year === year && b.month === month && b.currency === currency);
 }

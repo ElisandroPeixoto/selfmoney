@@ -2,6 +2,9 @@ import os
 
 # Keep tests away from the dev database file.
 os.environ["AUTO_CREATE_TABLES"] = "false"
+# Tests run without a login unless they configure one (see test_auth.py).
+os.environ["APP_ENV"] = "development"
+os.environ["APP_PASSWORD"] = ""
 
 from collections.abc import Iterator  # noqa: E402
 

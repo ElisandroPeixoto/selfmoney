@@ -67,40 +67,28 @@ describe("Dashboard", () => {
     });
     renderApp();
 
-    expect(await screen.findByTestId("total-balance")).toHaveTextContent(
-      "R$ 12.650,50",
-    );
+    expect(await screen.findByTestId("total-balance")).toHaveTextContent("R$ 12.650,50");
     // One card per account: bank, account name and balance.
-    const cards = within(
-      screen.getByRole("list", { name: "Contas" }),
-    ).getAllByRole("listitem");
+    const cards = within(screen.getByRole("list", { name: "Contas" })).getAllByRole("listitem");
     expect(cards).toHaveLength(2);
-    expect(
-      within(cards[0]).getByRole("img", { name: "Nubank" }),
-    ).toBeInTheDocument();
+    expect(within(cards[0]).getByRole("img", { name: "Nubank" })).toBeInTheDocument();
     expect(cards[0]).toHaveTextContent("Nubank");
     expect(cards[0]).toHaveTextContent("Conta Corrente");
     expect(cards[0]).toHaveTextContent("R$ 2.500,50");
     expect(cards[1]).toHaveTextContent("Sem banco");
     expect(cards[1]).toHaveTextContent("Poupança");
 
-    const table = within(
-      screen.getByRole("region", { name: /gastos do mês/i }),
-    ).getByRole("table");
+    const table = within(screen.getByRole("region", { name: /gastos do mês/i })).getByRole("table");
     expect(table).toHaveTextContent("Moradia");
     expect(table).toHaveTextContent("R$ 200,00");
     expect(table).toHaveTextContent("66,7%");
 
-    const summaryCall = fetchSpy.mock.calls.find(([u]) =>
-      String(u).includes("/summary"),
-    );
+    const summaryCall = fetchSpy.mock.calls.find(([u]) => String(u).includes("/summary"));
     expect(String(summaryCall?.[0])).toMatch(
       /\/api\/dashboard\/summary\?year=\d+&month=\d+&currency=BRL/,
     );
     // Only one currency: no selector.
-    expect(
-      screen.queryByRole("combobox", { name: /moeda/i }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: /moeda/i })).not.toBeInTheDocument();
   });
 
   it("shows one total per currency and lets the chart switch currency", async () => {
@@ -146,17 +134,12 @@ describe("Dashboard", () => {
     });
     await userEvent.selectOptions(year, String(new Date().getFullYear() - 1));
 
-    const url = new URL(
-      String(fetchSpy.mock.lastCall?.[0]),
-      "http://localhost",
-    );
+    const url = new URL(String(fetchSpy.mock.lastCall?.[0]), "http://localhost");
     expect(url.searchParams.get("month")).toBe("3");
-    expect(url.searchParams.get("year")).toBe(
-      String(new Date().getFullYear() - 1),
+    expect(url.searchParams.get("year")).toBe(String(new Date().getFullYear() - 1));
+    expect(within(card).getByRole("combobox", { name: "Mês do gráfico de gastos" })).toHaveValue(
+      "3",
     );
-    expect(
-      within(card).getByRole("combobox", { name: "Mês do gráfico de gastos" }),
-    ).toHaveValue("3");
   });
 
   it("shows an empty state when there are no expenses", async () => {
@@ -167,9 +150,7 @@ describe("Dashboard", () => {
       }),
     });
     renderApp();
-    expect(
-      await screen.findByText(/nenhum gasto registrado/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/nenhum gasto registrado/i)).toBeInTheDocument();
   });
 
   it("shows an error when the API fails", async () => {
@@ -179,18 +160,11 @@ describe("Dashboard", () => {
       "GET /api/dashboard/summary": () => ({ status: 500 }),
     });
     renderApp();
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      /não foi possível/i,
-    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(/não foi possível/i);
   });
 });
 
-function budget(
-  id: number,
-  year: number,
-  month: number,
-  items: Budget["items"],
-): Budget {
+function budget(id: number, year: number, month: number, items: Budget["items"]): Budget {
   return {
     id,
     year,
@@ -239,9 +213,7 @@ describe("Dashboard budget chart", () => {
   it("opens on the current month's budget and shows each category's status", async () => {
     const card = await renderWithBudgets([october, september]);
 
-    expect(
-      within(card).getByRole("combobox", { name: "Orçamento exibido" }),
-    ).toHaveValue("1");
+    expect(within(card).getByRole("combobox", { name: "Orçamento exibido" })).toHaveValue("1");
     const rows = within(card).getAllByRole("row").slice(1);
     expect(rows.map((r) => r.textContent)).toEqual([
       expect.stringMatching(/^Cartão de crédito.*50%Dentro do planejado$/),
@@ -272,31 +244,26 @@ describe("Dashboard budget chart", () => {
 
     expect(percent).toHaveAttribute("aria-pressed", "true");
     expect(amount).toHaveTextContent("R$");
-    expect(
-      within(card).getByRole("img", { name: /em percentual$/ }),
-    ).toBeInTheDocument();
+    expect(within(card).getByRole("img", { name: /em percentual$/ })).toBeInTheDocument();
 
     await userEvent.click(amount);
     expect(amount).toHaveAttribute("aria-pressed", "true");
     expect(percent).toHaveAttribute("aria-pressed", "false");
-    expect(
-      within(card).getByRole("img", { name: /em valores$/ }),
-    ).toBeInTheDocument();
+    expect(within(card).getByRole("img", { name: /em valores$/ })).toBeInTheDocument();
     expect(within(card).getByText("Restante até o limite")).toBeInTheDocument();
   });
 
   it("falls back to the most recent budget", async () => {
     const card = await renderWithBudgets([september]);
-    expect(
-      within(card).getByRole("combobox", { name: "Orçamento exibido" }),
-    ).toHaveValue("2");
+    expect(within(card).getByRole("combobox", { name: "Orçamento exibido" })).toHaveValue("2");
   });
 
   it("invites the user to create a budget when there is none", async () => {
     const card = await renderWithBudgets([]);
-    expect(
-      within(card).getByRole("link", { name: "Criar um orçamento" }),
-    ).toHaveAttribute("href", "/orcamentos");
+    expect(within(card).getByRole("link", { name: "Criar um orçamento" })).toHaveAttribute(
+      "href",
+      "/orcamentos",
+    );
   });
 });
 
@@ -330,12 +297,8 @@ describe("Dashboard income vs expense chart", () => {
 
     const rows = within(card).getAllByRole("row").slice(1);
     expect(rows).toHaveLength(12);
-    expect(rows[0]).toHaveTextContent(
-      "JaneiroR$ 5.000,00R$ 3.200,50R$ 1.799,50",
-    );
-    expect(rows[1]).toHaveTextContent(
-      "FevereiroR$ 5.000,00R$ 6.000,00-R$ 1.000,00",
-    );
+    expect(rows[0]).toHaveTextContent("JaneiroR$ 5.000,00R$ 3.200,50R$ 1.799,50");
+    expect(rows[1]).toHaveTextContent("FevereiroR$ 5.000,00R$ 6.000,00-R$ 1.000,00");
   });
 
   it("loads another year", async () => {
@@ -348,9 +311,7 @@ describe("Dashboard income vs expense chart", () => {
     const card = await screen.findByRole("region", {
       name: "Receitas vs despesas",
     });
-    expect(
-      await within(card).findByText(/nenhum lançamento em/i),
-    ).toBeInTheDocument();
+    expect(await within(card).findByText(/nenhum lançamento em/i)).toBeInTheDocument();
 
     const previous = String(new Date().getFullYear() - 1);
     await userEvent.selectOptions(
@@ -359,9 +320,7 @@ describe("Dashboard income vs expense chart", () => {
       }),
       previous,
     );
-    const call = fetchSpy.mock.calls
-      .filter(([u]) => String(u).includes("/reports/monthly"))
-      .pop();
+    const call = fetchSpy.mock.calls.filter(([u]) => String(u).includes("/reports/monthly")).pop();
     const url = new URL(String(call?.[0]), "http://localhost");
     expect(url.searchParams.get("year")).toBe(previous);
     expect(url.searchParams.get("currency")).toBe("BRL");

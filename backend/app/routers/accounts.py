@@ -5,7 +5,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Account, AccountMovement, Transaction
+from app.models import Account, AccountMovement, CreditCard, Transaction
 from app.schemas import AccountCreate, AccountRead, AccountUpdate
 from app.services import account_balances, list_accounts_with_balance, to_account_read
 
@@ -74,6 +74,12 @@ def delete_account(account_id: int, db: Session = Depends(get_db)) -> Response:
         update(AccountMovement)
         .where(AccountMovement.to_account_id == account_id)
         .values(to_account_id=None)
+    )
+    # Cards stay, unlinked; without an account they can't export anymore.
+    db.execute(
+        update(CreditCard)
+        .where(CreditCard.account_id == account_id)
+        .values(account_id=None, auto_export=False)
     )
     db.delete(account)
     db.commit()

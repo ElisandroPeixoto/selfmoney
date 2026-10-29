@@ -3,7 +3,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Category, Transaction, TransactionType
+from app.models import CardPurchase, Category, Transaction, TransactionType
 from app.schemas import CategoryCreate, CategoryRead, CategoryUpdate
 
 router = APIRouter(prefix="/categories", tags=["categories"])
@@ -61,6 +61,14 @@ def update_category(
                 status.HTTP_409_CONFLICT,
                 "Category is used by transactions of the other type",
             )
+        # Card purchases are always expenses.
+        on_card = db.scalar(
+            select(CardPurchase.id).where(CardPurchase.category_id == category_id).limit(1)
+        )
+        if on_card is not None and changes["kind"] != TransactionType.EXPENSE:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, "Category is used by credit card purchases"
+            )
 
     for field, value in changes.items():
         setattr(category, field, value)
@@ -76,6 +84,9 @@ def delete_category(category_id: int, db: Session = Depends(get_db)) -> Response
     # Done explicitly because SQLite doesn't enforce ON DELETE SET NULL by default.
     db.execute(
         update(Transaction).where(Transaction.category_id == category_id).values(category_id=None)
+    )
+    db.execute(
+        update(CardPurchase).where(CardPurchase.category_id == category_id).values(category_id=None)
     )
     db.delete(category)
     db.commit()

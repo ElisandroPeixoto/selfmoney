@@ -1,6 +1,6 @@
 # SelfMoney — guia do projeto
 
-Sistema de gestão financeira pessoal (uso individual, sem login). Monorepo com `backend/` (API REST)
+Sistema de gestão financeira pessoal (uso individual, protegido por uma única senha). Monorepo com `backend/` (API REST)
 e `frontend/` (SPA). O `README.md` traz as instruções de instalação para pessoas; este arquivo traz o
 contexto e as regras para quem for alterar o código.
 
@@ -55,27 +55,34 @@ backend/app/
   main.py          create_app(), CORS, registro dos routers sob /api
   config.py        Settings (.env em backend/); normaliza DATABASE_URL (ver "Banco")
   database.py      engine, SessionLocal, get_db, Base
-  models.py        Account, Category, Transaction, Budget, BudgetItem, BudgetTemplate(Item), AccountMovement
+  models.py        Account, Category, Transaction, Budget, BudgetItem, BudgetTemplate(Item), AccountMovement,
+                   CreditCard, CardPurchase
   schemas.py       modelos Pydantic de entrada/saída (o contrato da API)
-  services.py      regras de cálculo: saldos, dashboard, totais mensais, orçamentos, monthly_report
+  services.py      regras de cálculo: saldos, dashboard, totais mensais, orçamentos, monthly_report,
+                   parcelas/faturas/exportação de cartão
   report_pdf.py    desenho do relatório mensal em PDF (reportlab); só layout, dados vêm de services
-  routers/         accounts, categories, transactions, dashboard, reports, budgets, movements
+  routers/         accounts, categories, transactions, dashboard, reports, budgets, movements, cards,
+                   auth (status/login; `require_auth` protege todos os outros routers em main.py)
+  auth.py          tokens de sessão (HMAC, expiram; chave = SECRET_KEY + APP_PASSWORD)
   seed.py          dados de exemplo
-backend/alembic/versions/   0001…0006 (numeração sequencial manual via --rev-id)
+backend/alembic/versions/   0001…0007 (numeração sequencial manual via --rev-id)
 backend/tests/              conftest (SQLite em memória + override de get_db), um arquivo por área
 
 frontend/src/
   api/client.ts    fetch tipado; uma função por endpoint; tipos derivados de schema.d.ts
   api/schema.d.ts  GERADO — não editar à mão
   pages/           Dashboard, Transactions (Lançamentos), Budgets (Orçamentos), Movements, Accounts,
-                   Categories, Reports (Relatórios)
+                   Categories, Reports (Relatórios), CreditCards (Cartão de Crédito)
   components/      Sidebar, ThemeToggle, AccountsCard, SpendingChart, IncomeExpenseChart, BudgetChart, BudgetDetail,
-                   BudgetProgress, TransactionForm, MovementForm, MoneyInput, IconPicker, BankLogo, CategoryLabel, icons
+                   BudgetProgress, TransactionForm, MovementForm, CardForm, CardPurchaseForm, CardBills, MoneyInput, IconPicker, BankLogo, CategoryLabel, icons
   lib/format.ts    formatação pt-BR: moeda, %, mês, data, datas ISO
   lib/budgets.ts   budgetFor: orçamento de um mês/moeda (formulário e lista de Lançamentos)
   lib/download.ts  saveFile: entrega um Blob como download
+  lib/cards.ts     meses (shiftMonth, <input type="month">) e divisão das parcelas para a prévia
   lib/options.ts   bancos, moedas, paleta de categorias, ícones de categoria, rótulos de movimentação
   theme/           ThemeProvider + useTheme (claro/escuro, salvo em localStorage)
+  auth/            AuthGate (login ou app), useAuth (authRequired, logout), session.ts (token no
+                   localStorage + evento de 401). main.tsx consulta /api/auth/status antes de renderizar
   assets/banks/    logos SVG simplificados (nubank, banco_do_brasil, itau)
   assets/brand/    logo-light.png, logo-dark.png, favicon.png
   test/            setup.ts (jest-dom, ResizeObserver stub) e utils.tsx (mockApi, renderApp)
@@ -83,7 +90,7 @@ frontend/src/
 ```
 
 Rotas do frontend: `/` Dashboard, `/lancamentos`, `/orcamentos` e `/orcamentos/:budgetId`,
-`/movimentacoes`, `/contas`, `/categorias`, `/relatorios`.
+`/movimentacoes`, `/contas`, `/categorias`, `/relatorios`, `/cartoes` (`?cartao=id`).
 
 ## Domínio e regras de negócio
 
@@ -116,6 +123,16 @@ Rotas do frontend: `/` Dashboard, `/lancamentos`, `/orcamentos` e `/orcamentos/:
   não aparecem em Lançamentos nem em relatórios mensais, mas alteram saldos. **Justificativa obrigatória**
   (≥ 3 caracteres, aparada). O log é **append-only**: não existe editar/excluir na API. Os nomes das contas
   são copiados no registro para o log continuar legível se a conta for renomeada/excluída.
+- **Cartão de crédito** (`CreditCard`, `CardPurchase`): a compra guarda o **valor total**, o número
+  de parcelas (1–48) e a fatura (mês) da 1ª parcela; as demais seguem mês a mês. As parcelas **não são
+  gravadas**: `services.installment_amounts` divide o total em partes iguais, com os centavos que sobram
+  na 1ª (o frontend repete a conta em `lib/cards.ts` só para a prévia). A moeda do cartão é a da conta
+  vinculada. Exportar cria uma despesa por parcela na conta vinculada, com a categoria da compra (se
+  ainda for de despesa), datada no dia do vencimento (ou da compra) dentro do mês da fatura, e marca
+  `transactions.card_purchase_id` + `card_installment` (únicos juntos): cada parcela é exportada uma
+  vez; excluir a despesa a deixa pendente de novo. `auto_export` exporta todas as parcelas ao criar a
+  compra e exige conta. Excluir compra/cartão mantém as despesas exportadas (só desvincula); excluir a
+  conta desvincula o cartão e desliga `auto_export`. Categoria usada em compra não pode virar receita (409).
 - **Datas/horas:** `created_at` das movimentações é gravado em UTC; o schema devolve com `+00:00`
   (SQLite perde o fuso). Filtros por dia usam o dia **local** do usuário: o frontend manda instantes
   com fuso (`created_from`/`created_before` no histórico) ou o deslocamento em minutos (`utc_offset`
@@ -124,6 +141,16 @@ Rotas do frontend: `/` Dashboard, `/lancamentos`, `/orcamentos` e `/orcamentos/:
   atuais (todas as moedas, sem somar moedas diferentes). Fonte Helvetica padrão do PDF (WinAnsi):
   evite caracteres fora do Latin-1 como `−`, `≥`, emojis. Testes renderizam com `compress=False`
   para procurar texto no PDF. Datas `YYYY-MM-DD` são formatadas à mão no frontend para não deslocar o dia.
+
+## Acesso (senha)
+
+- Uma senha só, em `APP_PASSWORD`; sem ela (dev) não há login. `APP_ENV=production` exige
+  `APP_PASSWORD` e `SECRET_KEY`, senão `Settings` falha e a API não inicia.
+- `POST /api/auth/login` devolve um token assinado (30 dias, `SESSION_DAYS`); o frontend o envia como
+  `Authorization: Bearer` em toda chamada (`api/client.ts`). Um 401 limpa o token e volta ao login.
+- **Novo router protegido:** registrar em `protected` em `main.py`. Só `/api/health` e `/api/auth/*`
+  ficam abertos.
+- Falha de senha espera 1 s; a defesa real é uma senha longa.
 
 ## Banco de dados
 
@@ -178,10 +205,12 @@ Rotas do frontend: `/` Dashboard, `/lancamentos`, `/orcamentos` e `/orcamentos/:
 ## Testes
 
 - Backend: cada teste usa SQLite em memória (`conftest.py`); `AUTO_CREATE_TABLES=false` evita tocar no
-  banco de dev. Testar via `TestClient` contra a API.
+  banco de dev, e `APP_PASSWORD=""` deixa os testes sem login (o `.env` não interfere). Testes de
+  acesso sobrescrevem `get_settings` (ver `test_auth.py`). Testar via `TestClient` contra a API.
 - Frontend: `mockApi({"GET /api/rota": () => ({ body })})` intercepta `fetch` por método + caminho
   (requisição não mapeada lança erro — inclua `GET /api/budgets` ao renderizar o Dashboard);
-  `renderApp(path)` monta o app com tema e router. Recharts não desenha no jsdom (largura 0): teste o
+  `renderApp(path, authStatus?)` monta o app com tema e router (padrão: sem senha; passe
+  `{ auth_required: true, authenticated: false }` para testar o login). Recharts não desenha no jsdom (largura 0): teste o
   conteúdo pela tabela/legenda/aria, não pelo SVG. Formatação `Intl` usa espaço não separável após `R$`
   (`toHaveTextContent` normaliza; comparações de string cruas não).
 - Antes de concluir qualquer mudança: `pytest` + `ruff check` + `ruff format --check` no backend;
@@ -193,5 +222,7 @@ Rotas do frontend: `/` Dashboard, `/lancamentos`, `/orcamentos` e `/orcamentos/:
   regenerar `schema.d.ts` → ajustar `api/client.ts` e telas → README (seção de endpoints).
 - **Nova página:** componente em `pages/`, rota em `App.tsx`, item em `NAV_ITEMS` (Sidebar, com ícone em
   `icons.tsx`), testes com `mockApi`.
+- **Formatação:** não há Prettier no projeto; o código é formatado à mão em ~100 colunas. Se usar
+  Prettier, use `--print-width 100` e só nos arquivos que você mudou.
 - **Commits:** mensagens em inglês, no imperativo; não commitar `.env`, `*.db`, `.venv/`, `node_modules/`
   (já no `.gitignore`). Line endings fixados em LF (`.gitattributes`).

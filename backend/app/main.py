@@ -1,7 +1,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import models  # noqa: F401  (registers tables on Base.metadata)
@@ -9,7 +9,9 @@ from app.config import get_settings
 from app.database import Base, engine
 from app.routers import (
     accounts,
+    auth,
     budgets,
+    cards,
     categories,
     dashboard,
     movements,
@@ -33,15 +35,18 @@ def create_app() -> FastAPI:
         allow_origins=settings.cors_origin_list,
         allow_methods=["*"],
         allow_headers=["*"],
+        # Cross-origin JS can only read this header if exposed (it names the PDF download).
+        expose_headers=["Content-Disposition"],
     )
 
     @app.get("/api/health", tags=["health"])
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
-    routers = (accounts, categories, transactions, dashboard, reports, budgets, movements)
-    for module in routers:
-        app.include_router(module.router, prefix="/api")
+    app.include_router(auth.router, prefix="/api")
+    protected = (accounts, categories, transactions, dashboard, reports, budgets, movements, cards)
+    for module in protected:
+        app.include_router(module.router, prefix="/api", dependencies=[Depends(auth.require_auth)])
     return app
 
 

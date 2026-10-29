@@ -12,7 +12,9 @@ from app.models import (
     AccountMovement,
     Budget,
     BudgetItem,
+    CardPurchase,
     Category,
+    CreditCard,
     Currency,
     Transaction,
     TransactionType,
@@ -21,7 +23,11 @@ from app.schemas import (
     AccountRead,
     BudgetItemRead,
     BudgetRead,
+    CardBillRead,
+    CardInstallmentRead,
+    CardPurchaseRead,
     CategorySpending,
+    CreditCardRead,
     CurrencyTotal,
     DashboardSummary,
     MonthTotals,
@@ -362,3 +368,187 @@ def budget_read(db: Session, budget: Budget) -> BudgetRead:
         available=_money(planned - spent),
         items=items,
     )
+
+
+# Credit cards
+
+
+class CardExportError(ValueError):
+    """Raised when card installments can't be exported to the transactions."""
+
+
+def installment_amounts(total: Decimal, count: int) -> list[Decimal]:
+    """Split a price into installments; leftover cents go to the first one."""
+    cents = int(_money(total) * 100)
+    base, leftover = divmod(cents, count)
+    amounts = [Decimal(base) / 100] * count
+    amounts[0] = Decimal(base + leftover) / 100
+    return [_money(a) for a in amounts]
+
+
+def default_first_bill(purchase_date: date) -> tuple[int, int]:
+    return _shift_month(purchase_date.year, purchase_date.month, 1)
+
+
+def _installment_months(purchase: CardPurchase) -> list[tuple[int, int]]:
+    return [
+        _shift_month(purchase.first_year, purchase.first_month, i)
+        for i in range(purchase.installments)
+    ]
+
+
+def _exported(db: Session, purchase_ids: list[int]) -> dict[tuple[int, int], int]:
+    """(purchase id, installment number) -> id of the exported transaction."""
+    if not purchase_ids:
+        return {}
+    rows = db.execute(
+        select(Transaction.card_purchase_id, Transaction.card_installment, Transaction.id).where(
+            Transaction.card_purchase_id.in_(purchase_ids)
+        )
+    )
+    return {(purchase_id, number): tx_id for purchase_id, number, tx_id in rows}
+
+
+def _installments(
+    db: Session, purchases: list[CardPurchase]
+) -> list[tuple[tuple[int, int], CardInstallmentRead]]:
+    exported = _exported(db, [p.id for p in purchases])
+    result = []
+    for purchase in purchases:
+        amounts = installment_amounts(purchase.amount, purchase.installments)
+        for number, (bill, amount) in enumerate(
+            zip(_installment_months(purchase), amounts, strict=True), start=1
+        ):
+            installment = CardInstallmentRead(
+                purchase_id=purchase.id,
+                description=purchase.description,
+                number=number,
+                installments=purchase.installments,
+                amount=amount,
+                category_id=purchase.category_id,
+                transaction_id=exported.get((purchase.id, number)),
+            )
+            result.append((bill, installment))
+    return result
+
+
+def _card_purchases(db: Session, card_id: int) -> list[CardPurchase]:
+    query = (
+        select(CardPurchase)
+        .where(CardPurchase.card_id == card_id)
+        .order_by(CardPurchase.date, CardPurchase.id)
+    )
+    return list(db.scalars(query))
+
+
+def card_read(db: Session, card: CreditCard) -> CreditCardRead:
+    pending = sum(
+        (
+            i.amount
+            for _, i in _installments(db, _card_purchases(db, card.id))
+            if not i.transaction_id
+        ),
+        Decimal("0"),
+    )
+    return CreditCardRead(
+        id=card.id,
+        name=card.name,
+        account_id=card.account_id,
+        account_name=card.account.name if card.account else None,
+        currency=card.currency,
+        due_day=card.due_day,
+        auto_export=card.auto_export,
+        pending_total=_money(pending),
+    )
+
+
+def purchase_reads(db: Session, purchases: list[CardPurchase]) -> list[CardPurchaseRead]:
+    exported = _exported(db, [p.id for p in purchases])
+    return [
+        CardPurchaseRead(
+            id=p.id,
+            card_id=p.card_id,
+            description=p.description,
+            amount=p.amount,
+            installments=p.installments,
+            installment_amount=installment_amounts(p.amount, p.installments)[-1],
+            date=p.date,
+            first_year=p.first_year,
+            first_month=p.first_month,
+            category_id=p.category_id,
+            exported_installments=sum(1 for purchase_id, _ in exported if purchase_id == p.id),
+        )
+        for p in purchases
+    ]
+
+
+def card_bills(
+    db: Session, card: CreditCard, year: int, month: int, months: int = 1
+) -> list[CardBillRead]:
+    """Bills of `months` consecutive months starting at year/month."""
+    by_month: dict[tuple[int, int], list[CardInstallmentRead]] = defaultdict(list)
+    for bill, installment in _installments(db, _card_purchases(db, card.id)):
+        by_month[bill].append(installment)
+    bills = []
+    for offset in range(months):
+        key = _shift_month(year, month, offset)
+        items = by_month.get(key, [])
+        total = sum((i.amount for i in items), Decimal("0"))
+        pending = sum((i.amount for i in items if i.transaction_id is None), Decimal("0"))
+        bills.append(
+            CardBillRead(
+                year=key[0],
+                month=key[1],
+                total=_money(total),
+                pending_total=_money(pending),
+                installments=items,
+            )
+        )
+    return bills
+
+
+def _export_date(card: CreditCard, purchase: CardPurchase, year: int, month: int) -> date:
+    day = card.due_day or purchase.date.day
+    return date(year, month, min(day, calendar.monthrange(year, month)[1]))
+
+
+def export_card_installments(
+    db: Session,
+    card: CreditCard,
+    bill: tuple[int, int] | None = None,
+    purchase_id: int | None = None,
+) -> int:
+    """Create an expense for each pending installment (of one bill, or of one purchase).
+
+    Already exported installments are skipped. Doesn't commit.
+    """
+    if card.account_id is None:
+        raise CardExportError("Link the card to an account before exporting")
+    purchases = {p.id: p for p in _card_purchases(db, card.id)}
+    if purchase_id is not None:
+        purchases = {purchase_id: purchases[purchase_id]}
+    created = 0
+    for (year, month), installment in _installments(db, list(purchases.values())):
+        if installment.transaction_id is not None or (bill and (year, month) != bill):
+            continue
+        purchase = purchases[installment.purchase_id]
+        # The category may have become an income one since the purchase was added.
+        category = purchase.category
+        suffix = f" ({installment.number}/{purchase.installments})"
+        db.add(
+            Transaction(
+                description=purchase.description + (suffix if purchase.installments > 1 else ""),
+                amount=installment.amount,
+                type=TransactionType.EXPENSE,
+                date=_export_date(card, purchase, year, month),
+                account_id=card.account_id,
+                category_id=(
+                    category.id if category and category.kind == TransactionType.EXPENSE else None
+                ),
+                card_purchase_id=purchase.id,
+                card_installment=installment.number,
+            )
+        )
+        created += 1
+    db.flush()
+    return created

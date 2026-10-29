@@ -10,16 +10,8 @@ import {
   type TooltipProps,
 } from "recharts";
 
-import {
-  fetchMonthlyTotals,
-  type Currency,
-  type MonthTotals,
-} from "../api/client";
-import {
-  formatCurrency,
-  formatCurrencyRounded,
-  monthName,
-} from "../lib/format";
+import { fetchMonthlyTotals, type Currency, type MonthTotals } from "../api/client";
+import { formatCurrency, formatCurrencyRounded, monthName } from "../lib/format";
 
 const SERIES = [
   { key: "income", label: "Receitas", color: "var(--positive)" },
@@ -52,22 +44,15 @@ interface Props {
   availableCurrencies: Currency[];
 }
 
-export default function IncomeExpenseChart({
-  years,
-  availableCurrencies,
-}: Props) {
+export default function IncomeExpenseChart({ years, availableCurrencies }: Props) {
   const [year, setYear] = useState(() => new Date().getFullYear());
-  const [currency, setCurrency] = useState<Currency>(
-    availableCurrencies[0] ?? "BRL",
-  );
+  const [currency, setCurrency] = useState<Currency>(availableCurrencies[0] ?? "BRL");
   const [state, setState] = useState<State>({ status: "loading" });
 
   useEffect(() => {
     const controller = new AbortController();
     fetchMonthlyTotals(year, currency, controller.signal)
-      .then((totals) =>
-        setState({ status: "ready", rows: toRows(totals), year, currency }),
-      )
+      .then((totals) => setState({ status: "ready", rows: toRows(totals), year, currency }))
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
           console.error(error);
@@ -90,9 +75,7 @@ export default function IncomeExpenseChart({
             {s.label}: {formatCurrency(row[s.key], state.currency)}
           </span>
         ))}
-        <span className="muted">
-          Saldo: {formatCurrency(balance, state.currency)}
-        </span>
+        <span className="muted">Saldo: {formatCurrency(balance, state.currency)}</span>
       </div>
     );
   }
@@ -150,18 +133,11 @@ export default function IncomeExpenseChart({
 
       {ready && (totalIncome > 0 || totalExpense > 0) && (
         <>
-          <p
-            className="budget-chart-summary"
-            data-testid="income-expense-totals"
-          >
+          <p className="budget-chart-summary" data-testid="income-expense-totals">
             <span className="muted">Receitas </span>
-            <strong className="positive">
-              {formatCurrency(totalIncome, ready.currency)}
-            </strong>
+            <strong className="positive">{formatCurrency(totalIncome, ready.currency)}</strong>
             <span className="muted"> · Despesas </span>
-            <strong className="negative">
-              {formatCurrency(totalExpense, ready.currency)}
-            </strong>
+            <strong className="negative">{formatCurrency(totalExpense, ready.currency)}</strong>
             <span className="muted"> · Saldo do ano </span>
             <strong className={balance < 0 ? "negative" : undefined}>
               {formatCurrency(balance, ready.currency)}
@@ -188,18 +164,13 @@ export default function IncomeExpenseChart({
                   tickLine={false}
                 />
                 <YAxis
-                  tickFormatter={(v: number) =>
-                    formatCurrencyRounded(v, ready.currency)
-                  }
+                  tickFormatter={(v: number) => formatCurrencyRounded(v, ready.currency)}
                   tick={{ fill: "var(--text-muted)", fontSize: 12 }}
                   axisLine={false}
                   tickLine={false}
                   width={88}
                 />
-                <Tooltip
-                  content={<MonthTooltip />}
-                  cursor={{ fill: "var(--bg)" }}
-                />
+                <Tooltip content={<MonthTooltip />} cursor={{ fill: "var(--bg)" }} />
                 {SERIES.map((s) => (
                   <Bar
                     key={s.key}
@@ -242,9 +213,7 @@ export default function IncomeExpenseChart({
                     <td>{monthName(r.month)}</td>
                     <td>{formatCurrency(r.income, ready.currency)}</td>
                     <td>{formatCurrency(r.expense, ready.currency)}</td>
-                    <td>
-                      {formatCurrency(r.income - r.expense, ready.currency)}
-                    </td>
+                    <td>{formatCurrency(r.income - r.expense, ready.currency)}</td>
                   </tr>
                 ))}
               </tbody>

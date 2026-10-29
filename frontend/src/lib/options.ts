@@ -21,6 +21,9 @@ export const CURRENCIES: Record<Currency, string> = {
   EUR: "Euro (€)",
 };
 
+/** Matches the API's "Sem categoria" color. */
+export const UNCATEGORIZED_COLOR = "#94a3b8";
+
 // Colorblind-friendly categorical palette; new categories take the next unused slot.
 export const CATEGORY_PALETTE = [
   "#2a78d6",

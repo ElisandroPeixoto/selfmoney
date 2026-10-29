@@ -1,3 +1,4 @@
+import { clearToken, getToken, UNAUTHORIZED_EVENT } from "../auth/session";
 import type { components } from "./schema";
 
 type Schemas = components["schemas"];
@@ -25,6 +26,16 @@ export type MovementKind = Schemas["MovementKind"];
 export type CategorySpending = Schemas["CategorySpending"];
 export type Currency = Schemas["Currency"];
 export type Bank = Schemas["Bank"];
+export type CreditCard = Schemas["CreditCardRead"];
+export type CreditCardCreate = Schemas["CreditCardCreate"];
+export type CreditCardUpdate = Schemas["CreditCardUpdate"];
+export type CardPurchase = Schemas["CardPurchaseRead"];
+export type CardPurchaseCreate = Schemas["CardPurchaseCreate"];
+export type CardBill = Schemas["CardBillRead"];
+export type CardInstallment = Schemas["CardInstallmentRead"];
+export type CardExportResult = Schemas["CardExportResult"];
+export type AuthStatus = Schemas["AuthStatus"];
+export type LoginResponse = Schemas["LoginResponse"];
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
@@ -37,16 +48,47 @@ export class ApiError extends Error {
   }
 }
 
+function authHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+function checkResponse(response: Response): void {
+  if (response.status === 401) {
+    // The session expired or the password changed: drop the token and ask for the password.
+    clearToken();
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+  }
+  if (!response.ok) {
+    throw new ApiError(response.status, `Request failed: ${response.status}`);
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...init,
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+  });
+  checkResponse(response);
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
+}
+
+export function fetchAuthStatus(): Promise<AuthStatus> {
+  return request<AuthStatus>("/auth/status");
+}
+
+/** A wrong password is a 401 here, but it must not count as an expired session. */
+export async function login(password: string): Promise<LoginResponse> {
+  const response = await fetch(`${BASE_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
   });
   if (!response.ok) {
     throw new ApiError(response.status, `Request failed: ${response.status}`);
   }
-  if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
+  return (await response.json()) as LoginResponse;
 }
 
 export function fetchDashboardSummary(
@@ -78,10 +120,7 @@ export function deleteAccount(id: number): Promise<void> {
   return request<void>(`/accounts/${id}`, { method: "DELETE" });
 }
 
-export function updateAccount(
-  id: number,
-  changes: AccountUpdate,
-): Promise<Account> {
+export function updateAccount(id: number, changes: AccountUpdate): Promise<Account> {
   return request<Account>(`/accounts/${id}`, {
     method: "PATCH",
     body: JSON.stringify(changes),
@@ -103,10 +142,7 @@ export function deleteCategory(id: number): Promise<void> {
   return request<void>(`/categories/${id}`, { method: "DELETE" });
 }
 
-export function updateCategory(
-  id: number,
-  changes: CategoryUpdate,
-): Promise<Category> {
+export function updateCategory(id: number, changes: CategoryUpdate): Promise<Category> {
   return request<Category>(`/categories/${id}`, {
     method: "PATCH",
     body: JSON.stringify(changes),
@@ -133,19 +169,14 @@ export function fetchTransactions(
   return request<Transaction[]>(`/transactions?${params}`, { signal });
 }
 
-export function createTransaction(
-  payload: TransactionCreate,
-): Promise<Transaction> {
+export function createTransaction(payload: TransactionCreate): Promise<Transaction> {
   return request<Transaction>("/transactions", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export function updateTransaction(
-  id: number,
-  changes: TransactionUpdate,
-): Promise<Transaction> {
+export function updateTransaction(id: number, changes: TransactionUpdate): Promise<Transaction> {
   return request<Transaction>(`/transactions/${id}`, {
     method: "PATCH",
     body: JSON.stringify(changes),
@@ -182,10 +213,10 @@ export async function downloadMonthlyReport(
     currency,
     utc_offset: String(-new Date().getTimezoneOffset()),
   });
-  const response = await fetch(`${BASE_URL}/reports/monthly-pdf?${params}`);
-  if (!response.ok) {
-    throw new ApiError(response.status, `Request failed: ${response.status}`);
-  }
+  const response = await fetch(`${BASE_URL}/reports/monthly-pdf?${params}`, {
+    headers: authHeaders(),
+  });
+  checkResponse(response);
   const fallback = `selfmoney-relatorio-${year}-${String(month).padStart(2, "0")}.pdf`;
   const disposition = response.headers.get("Content-Disposition") ?? "";
   const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? fallback;
@@ -211,10 +242,7 @@ export function deleteBudget(id: number): Promise<void> {
   return request<void>(`/budgets/${id}`, { method: "DELETE" });
 }
 
-export function addBudgetItem(
-  budgetId: number,
-  payload: BudgetItemCreate,
-): Promise<Budget> {
+export function addBudgetItem(budgetId: number, payload: BudgetItemCreate): Promise<Budget> {
   return request<Budget>(`/budgets/${budgetId}/items`, {
     method: "POST",
     body: JSON.stringify(payload),
@@ -232,25 +260,17 @@ export function updateBudgetItem(
   });
 }
 
-export function deleteBudgetItem(
-  budgetId: number,
-  itemId: number,
-): Promise<Budget> {
+export function deleteBudgetItem(budgetId: number, itemId: number): Promise<Budget> {
   return request<Budget>(`/budgets/${budgetId}/items/${itemId}`, {
     method: "DELETE",
   });
 }
 
-export function fetchBudgetTemplates(
-  signal?: AbortSignal,
-): Promise<BudgetTemplate[]> {
+export function fetchBudgetTemplates(signal?: AbortSignal): Promise<BudgetTemplate[]> {
   return request<BudgetTemplate[]>("/budget-templates", { signal });
 }
 
-export function saveBudgetAsTemplate(
-  budgetId: number,
-  name: string,
-): Promise<BudgetTemplate> {
+export function saveBudgetAsTemplate(budgetId: number, name: string): Promise<BudgetTemplate> {
   return request<BudgetTemplate>(`/budgets/${budgetId}/save-template`, {
     method: "POST",
     body: JSON.stringify({ name }),
@@ -275,10 +295,7 @@ function localDayStart(iso: string, addDays = 0): string {
   return new Date(year, month - 1, day + addDays).toISOString();
 }
 
-export function fetchMovements(
-  filter: MovementFilter,
-  signal?: AbortSignal,
-): Promise<Movement[]> {
+export function fetchMovements(filter: MovementFilter, signal?: AbortSignal): Promise<Movement[]> {
   const params = new URLSearchParams();
   if (filter.accountId) params.set("account_id", String(filter.accountId));
   if (filter.kind) params.set("kind", filter.kind);
@@ -288,29 +305,89 @@ export function fetchMovements(
   return request<Movement[]>(`/movements?${params}`, { signal });
 }
 
-export function depositMoney(
-  payload: Schemas["DepositCreate"],
-): Promise<Movement> {
+export function depositMoney(payload: Schemas["DepositCreate"]): Promise<Movement> {
   return request<Movement>("/movements/deposit", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export function withdrawMoney(
-  payload: Schemas["WithdrawalCreate"],
-): Promise<Movement> {
+export function withdrawMoney(payload: Schemas["WithdrawalCreate"]): Promise<Movement> {
   return request<Movement>("/movements/withdrawal", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export function transferMoney(
-  payload: Schemas["TransferCreate"],
-): Promise<Movement> {
+export function transferMoney(payload: Schemas["TransferCreate"]): Promise<Movement> {
   return request<Movement>("/movements/transfer", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export function fetchCards(signal?: AbortSignal): Promise<CreditCard[]> {
+  return request<CreditCard[]>("/cards", { signal });
+}
+
+export function createCard(payload: CreditCardCreate): Promise<CreditCard> {
+  return request<CreditCard>("/cards", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateCard(id: number, changes: CreditCardUpdate): Promise<CreditCard> {
+  return request<CreditCard>(`/cards/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(changes),
+  });
+}
+
+export function deleteCard(id: number): Promise<void> {
+  return request<void>(`/cards/${id}`, { method: "DELETE" });
+}
+
+export function fetchCardPurchases(cardId: number, signal?: AbortSignal): Promise<CardPurchase[]> {
+  return request<CardPurchase[]>(`/cards/${cardId}/purchases`, { signal });
+}
+
+export function createCardPurchase(
+  cardId: number,
+  payload: CardPurchaseCreate,
+): Promise<CardPurchase> {
+  return request<CardPurchase>(`/cards/${cardId}/purchases`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteCardPurchase(cardId: number, purchaseId: number): Promise<void> {
+  return request<void>(`/cards/${cardId}/purchases/${purchaseId}`, { method: "DELETE" });
+}
+
+/** Bills of `months` consecutive months starting at year/month. */
+export function fetchCardBills(
+  cardId: number,
+  year: number,
+  month: number,
+  months: number,
+  signal?: AbortSignal,
+): Promise<CardBill[]> {
+  const params = new URLSearchParams({
+    year: String(year),
+    month: String(month),
+    months: String(months),
+  });
+  return request<CardBill[]>(`/cards/${cardId}/bills?${params}`, { signal });
+}
+
+export function exportCardBill(
+  cardId: number,
+  year: number,
+  month: number,
+): Promise<CardExportResult> {
+  return request<CardExportResult>(`/cards/${cardId}/bills/${year}/${month}/export`, {
+    method: "POST",
   });
 }

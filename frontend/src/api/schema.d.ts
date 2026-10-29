@@ -21,6 +21,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Auth Status */
+        get: operations["auth_status_api_auth_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Login */
+        post: operations["login_api_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/accounts": {
         parameters: {
             query?: never;
@@ -382,6 +416,111 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Cards */
+        get: operations["list_cards_api_cards_get"];
+        put?: never;
+        /** Create Card */
+        post: operations["create_card_api_cards_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cards/{card_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Card */
+        delete: operations["delete_card_api_cards__card_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Card */
+        patch: operations["update_card_api_cards__card_id__patch"];
+        trace?: never;
+    };
+    "/api/cards/{card_id}/purchases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Purchases */
+        get: operations["list_purchases_api_cards__card_id__purchases_get"];
+        put?: never;
+        /** Create Purchase */
+        post: operations["create_purchase_api_cards__card_id__purchases_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cards/{card_id}/purchases/{purchase_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Purchase */
+        delete: operations["delete_purchase_api_cards__card_id__purchases__purchase_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cards/{card_id}/bills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Bills */
+        get: operations["list_bills_api_cards__card_id__bills_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cards/{card_id}/bills/{year}/{month}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Export Bill */
+        post: operations["export_bill_api_cards__card_id__bills__year___month__export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -421,6 +560,13 @@ export interface components {
             name?: string | null;
             currency?: components["schemas"]["Currency"] | null;
             bank?: components["schemas"]["Bank"] | null;
+        };
+        /** AuthStatus */
+        AuthStatus: {
+            /** Auth Required */
+            auth_required: boolean;
+            /** Authenticated */
+            authenticated: boolean;
         };
         /**
          * Bank
@@ -506,6 +652,93 @@ export interface components {
             /** Items */
             items: components["schemas"]["BudgetTemplateItemRead"][];
         };
+        /** CardBillRead */
+        CardBillRead: {
+            /** Year */
+            year: number;
+            /** Month */
+            month: number;
+            /** Total */
+            total: string;
+            /** Pending Total */
+            pending_total: string;
+            /** Installments */
+            installments: components["schemas"]["CardInstallmentRead"][];
+        };
+        /** CardExportResult */
+        CardExportResult: {
+            /** Created */
+            created: number;
+            bill: components["schemas"]["CardBillRead"];
+        };
+        /** CardInstallmentRead */
+        CardInstallmentRead: {
+            /** Purchase Id */
+            purchase_id: number;
+            /** Description */
+            description: string;
+            /** Number */
+            number: number;
+            /** Installments */
+            installments: number;
+            /** Amount */
+            amount: string;
+            /** Category Id */
+            category_id: number | null;
+            /** Transaction Id */
+            transaction_id: number | null;
+        };
+        /** CardPurchaseCreate */
+        CardPurchaseCreate: {
+            /** Description */
+            description: string;
+            /** Amount */
+            amount: number | string;
+            /**
+             * Installments
+             * @default 1
+             */
+            installments: number;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** First Year */
+            first_year?: number | null;
+            /** First Month */
+            first_month?: number | null;
+            /** Category Id */
+            category_id?: number | null;
+        };
+        /** CardPurchaseRead */
+        CardPurchaseRead: {
+            /** Id */
+            id: number;
+            /** Card Id */
+            card_id: number;
+            /** Description */
+            description: string;
+            /** Amount */
+            amount: string;
+            /** Installments */
+            installments: number;
+            /** Installment Amount */
+            installment_amount: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** First Year */
+            first_year: number;
+            /** First Month */
+            first_month: number;
+            /** Category Id */
+            category_id: number | null;
+            /** Exported Installments */
+            exported_installments: number;
+        };
         /** CategoryCreate */
         CategoryCreate: {
             /** Name */
@@ -558,6 +791,55 @@ export interface components {
             icon?: string | null;
             kind?: components["schemas"]["TransactionType"] | null;
         };
+        /** CreditCardCreate */
+        CreditCardCreate: {
+            /** Name */
+            name: string;
+            /** Account Id */
+            account_id?: number | null;
+            /** @default BRL */
+            currency: components["schemas"]["Currency"];
+            /** Due Day */
+            due_day?: number | null;
+            /**
+             * Auto Export
+             * @default false
+             */
+            auto_export: boolean;
+        };
+        /** CreditCardRead */
+        CreditCardRead: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Account Id */
+            account_id: number | null;
+            /** Account Name */
+            account_name: string | null;
+            currency: components["schemas"]["Currency"];
+            /** Due Day */
+            due_day: number | null;
+            /** Auto Export */
+            auto_export: boolean;
+            /** Pending Total */
+            pending_total: string;
+        };
+        /**
+         * CreditCardUpdate
+         * @description Partial update: only fields present in the request body are changed.
+         */
+        CreditCardUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Account Id */
+            account_id?: number | null;
+            currency?: components["schemas"]["Currency"] | null;
+            /** Due Day */
+            due_day?: number | null;
+            /** Auto Export */
+            auto_export?: boolean | null;
+        };
         /**
          * Currency
          * @enum {string}
@@ -598,6 +880,21 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** LoginRequest */
+        LoginRequest: {
+            /** Password */
+            password: string;
+        };
+        /** LoginResponse */
+        LoginResponse: {
+            /** Token */
+            token: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
         };
         /** MonthTotals */
         MonthTotals: {
@@ -758,6 +1055,59 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+    };
+    auth_status_api_auth_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthStatus"];
+                };
+            };
+        };
+    };
+    login_api_auth_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -1661,6 +2011,287 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MovementRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_cards_api_cards_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditCardRead"][];
+                };
+            };
+        };
+    };
+    create_card_api_cards_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreditCardCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditCardRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_card_api_cards__card_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_card_api_cards__card_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreditCardUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditCardRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_purchases_api_cards__card_id__purchases_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardPurchaseRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_purchase_api_cards__card_id__purchases_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CardPurchaseCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardPurchaseRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_purchase_api_cards__card_id__purchases__purchase_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: number;
+                purchase_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_bills_api_cards__card_id__bills_get: {
+        parameters: {
+            query: {
+                year: number;
+                month: number;
+                months?: number;
+            };
+            header?: never;
+            path: {
+                card_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardBillRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_bill_api_cards__card_id__bills__year___month__export_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: number;
+                year: number;
+                month: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardExportResult"];
                 };
             };
             /** @description Validation Error */

@@ -24,8 +24,7 @@ const usd: Account = {
 const pdf = () => ({
   body: new Blob(["%PDF-1.4"], { type: "application/pdf" }),
   headers: {
-    "Content-Disposition":
-      'attachment; filename="selfmoney-relatorio-2026-03-BRL.pdf"',
+    "Content-Disposition": 'attachment; filename="selfmoney-relatorio-2026-03-BRL.pdf"',
   },
 });
 
@@ -42,18 +41,12 @@ describe("Reports page", () => {
   it("is reachable from the sidebar", async () => {
     mockApi({ "GET /api/accounts": () => ({ body: [brl] }) });
     renderApp("/relatorios");
-    expect(screen.getByRole("link", { name: "Relatórios" })).toHaveClass(
-      "active",
-    );
-    expect(
-      screen.getByRole("heading", { name: "Relatórios", level: 1 }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Relatórios" })).toHaveClass("active");
+    expect(screen.getByRole("heading", { name: "Relatórios", level: 1 })).toBeInTheDocument();
   });
 
   it("downloads the PDF of the chosen month", async () => {
-    const click = vi
-      .spyOn(HTMLAnchorElement.prototype, "click")
-      .mockImplementation(() => {});
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     const spy = mockApi({
       "GET /api/accounts": () => ({ body: [brl] }),
       "GET /api/reports/monthly-pdf": pdf,
@@ -66,16 +59,12 @@ describe("Reports page", () => {
     await userEvent.selectOptions(within(form).getByLabelText("Mês"), "2");
     // A single currency needs no picker.
     expect(within(form).queryByLabelText("Moeda")).not.toBeInTheDocument();
-    await userEvent.click(
-      within(form).getByRole("button", { name: "Gerar PDF" }),
-    );
+    await userEvent.click(within(form).getByRole("button", { name: "Gerar PDF" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Relatório de Fevereiro de 2026 gerado: selfmoney-relatorio-2026-03-BRL.pdf",
     );
-    const call = spy.mock.calls.find(([u]) =>
-      String(u).includes("monthly-pdf"),
-    );
+    const call = spy.mock.calls.find(([u]) => String(u).includes("monthly-pdf"));
     const url = new URL(String(call?.[0]), "http://localhost");
     expect(Object.fromEntries(url.searchParams)).toEqual({
       year: "2026",
@@ -100,9 +89,7 @@ describe("Reports page", () => {
     await userEvent.selectOptions(await screen.findByLabelText("Moeda"), "USD");
     await userEvent.click(screen.getByRole("button", { name: "Gerar PDF" }));
     await screen.findByRole("status");
-    const call = spy.mock.calls.find(([u]) =>
-      String(u).includes("monthly-pdf"),
-    );
+    const call = spy.mock.calls.find(([u]) => String(u).includes("monthly-pdf"));
     expect(String(call?.[0])).toContain("currency=USD");
   });
 
@@ -115,9 +102,7 @@ describe("Reports page", () => {
     renderApp("/relatorios");
 
     await userEvent.click(screen.getByRole("button", { name: "Gerar PDF" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      /não foi possível gerar/i,
-    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(/não foi possível gerar/i);
     expect(screen.getByRole("button", { name: "Gerar PDF" })).toBeEnabled();
   });
 });

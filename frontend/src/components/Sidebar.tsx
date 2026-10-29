@@ -3,12 +3,15 @@ import { NavLink } from "react-router-dom";
 
 import logoDark from "../assets/brand/logo-dark.png";
 import logoLight from "../assets/brand/logo-light.png";
+import { useAuth } from "../auth/auth-context";
 import { useTheme } from "../theme/theme-context";
 import {
   BudgetIcon,
+  CardIcon,
   CollapseIcon,
   DashboardIcon,
   ListIcon,
+  LogoutIcon,
   ReportIcon,
   TagIcon,
   TransferIcon,
@@ -25,7 +28,11 @@ interface NavItem {
   end?: boolean;
 }
 
-const DASHBOARD: NavItem = { to: "/", label: "Dashboard", icon: <DashboardIcon /> };
+const DASHBOARD: NavItem = {
+  to: "/",
+  label: "Dashboard",
+  icon: <DashboardIcon />,
+};
 
 // Kept in alphabetical order regardless of how they are listed here.
 const NAV_ITEMS: NavItem[] = [
@@ -35,6 +42,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/contas", label: "Contas", icon: <WalletIcon /> },
   { to: "/categorias", label: "Categorias", icon: <TagIcon /> },
   { to: "/relatorios", label: "Relatórios", icon: <ReportIcon /> },
+  { to: "/cartoes", label: "Cartão de Crédito", icon: <CardIcon /> },
 ].sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
 
 function readCollapsed(): boolean {
@@ -71,6 +79,7 @@ function NavItemLink({
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const { theme } = useTheme();
+  const { authRequired, logout } = useAuth();
 
   useEffect(() => {
     try {
@@ -118,6 +127,17 @@ export default function Sidebar() {
       </nav>
       <div className="sidebar-footer">
         <ThemeToggle />
+        {authRequired && (
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={logout}
+            aria-label="Sair"
+            title="Sair"
+          >
+            <LogoutIcon />
+          </button>
+        )}
       </div>
     </aside>
   );

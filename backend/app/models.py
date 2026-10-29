@@ -3,6 +3,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from sqlalchemy import Date, DateTime, Enum, ForeignKey, Numeric, String, UniqueConstraint, func
+from sqlalchemy import false as sa_false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -78,6 +79,12 @@ class Category(Base):
 
 class Transaction(Base):
     __tablename__ = "transactions"
+    # Each card installment is exported at most once.
+    __table_args__ = (
+        UniqueConstraint(
+            "card_purchase_id", "card_installment", name="uq_transactions_card_installment"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     description: Mapped[str] = mapped_column(String(200))
@@ -96,6 +103,13 @@ class Transaction(Base):
     budget_item_id: Mapped[int | None] = mapped_column(
         ForeignKey("budget_items.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # Set when the expense was exported from a credit card installment (see CardPurchase).
+    card_purchase_id: Mapped[int | None] = mapped_column(
+        ForeignKey("card_purchases.id", ondelete="SET NULL", name="fk_transactions_card_purchase"),
+        nullable=True,
+        index=True,
+    )
+    card_installment: Mapped[int | None] = mapped_column(nullable=True)
 
     account: Mapped[Account] = relationship(back_populates="transactions")
     category: Mapped[Category | None] = relationship(back_populates="transactions")
@@ -183,3 +197,59 @@ class AccountMovement(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True
     )
+
+
+class CreditCard(Base):
+    """A credit card whose purchases are split into monthly installments.
+
+    Installments are exported as expenses of the linked account; the card's currency
+    follows that account.
+    """
+
+    __tablename__ = "credit_cards"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True)
+    account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("accounts.id", ondelete="SET NULL", name="fk_credit_cards_account"),
+        nullable=True,
+    )
+    currency: Mapped[Currency] = mapped_column(
+        _string_enum(Currency, 3), default=Currency.BRL, server_default=Currency.BRL.value
+    )
+    # Day of the month the bill is paid; exported expenses are dated on it.
+    due_day: Mapped[int | None] = mapped_column(nullable=True)
+    # Export every installment to the transactions as soon as a purchase is added.
+    auto_export: Mapped[bool] = mapped_column(default=False, server_default=sa_false())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    account: Mapped[Account | None] = relationship()
+    purchases: Mapped[list["CardPurchase"]] = relationship(
+        back_populates="card", cascade="all, delete-orphan"
+    )
+
+
+class CardPurchase(Base):
+    __tablename__ = "card_purchases"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    card_id: Mapped[int] = mapped_column(
+        ForeignKey("credit_cards.id", ondelete="CASCADE", name="fk_card_purchases_card"),
+        index=True,
+    )
+    description: Mapped[str] = mapped_column(String(150))
+    # Total price; installments split it (see services.installment_amounts).
+    amount: Mapped[Decimal] = mapped_column(Money)
+    installments: Mapped[int]
+    date: Mapped[date] = mapped_column(Date)
+    # Bill (month) of the first installment; the others follow month by month.
+    first_year: Mapped[int]
+    first_month: Mapped[int]
+    category_id: Mapped[int | None] = mapped_column(
+        ForeignKey("categories.id", ondelete="SET NULL", name="fk_card_purchases_category"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    card: Mapped[CreditCard] = relationship(back_populates="purchases")
+    category: Mapped[Category | None] = relationship()

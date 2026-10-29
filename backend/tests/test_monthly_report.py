@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import update
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.models import AccountMovement, Currency
 from app.report_pdf import money, render_monthly_report
 from app.services import monthly_report
@@ -139,6 +140,16 @@ def test_pdf_endpoint(client: TestClient) -> None:
         == 'attachment; filename="selfmoney-relatorio-2026-02-BRL.pdf"'
     )
     assert response.content.startswith(b"%PDF")
+
+
+def test_pdf_file_name_is_readable_cross_origin(client: TestClient) -> None:
+    # In production the frontend is on another domain; without this the name is hidden.
+    origin = get_settings().cors_origin_list[0]
+    response = client.get(
+        "/api/reports/monthly-pdf", params={"year": 2026, "month": 2}, headers={"Origin": origin}
+    )
+    assert response.headers["access-control-allow-origin"] == origin
+    assert "content-disposition" in response.headers["access-control-expose-headers"].lower()
 
 
 def test_pdf_endpoint_validates_the_period(client: TestClient) -> None:
