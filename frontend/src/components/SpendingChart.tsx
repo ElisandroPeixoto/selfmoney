@@ -1,7 +1,7 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, type TooltipProps } from "recharts";
 
 import type { CategorySpending, Currency } from "../api/client";
-import { formatCurrency, formatPercent } from "../lib/format";
+import { formatCurrency, formatMonth, formatPercent, monthName } from "../lib/format";
 import CategoryLabel from "./CategoryLabel";
 
 interface Props {
@@ -10,7 +10,13 @@ interface Props {
   currency: Currency;
   availableCurrencies: Currency[];
   onCurrencyChange: (currency: Currency) => void;
+  year: number;
+  month: number;
+  years: number[];
+  onPeriodChange: (year: number, month: number) => void;
 }
+
+const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 interface Slice {
   name: string;
@@ -43,6 +49,10 @@ export default function SpendingChart({
   currency,
   availableCurrencies,
   onCurrencyChange,
+  year,
+  month,
+  years,
+  onPeriodChange,
 }: Props) {
   const totalNumber = Number(total);
   const slices: Slice[] = data.map((item) => ({
@@ -60,28 +70,58 @@ export default function SpendingChart({
         <h2 id="spending-title" className="card-title">
           Gastos do mês por categoria
         </h2>
-        {/* Amounts in different currencies can't share one chart; pick which to show. */}
-        {availableCurrencies.length > 1 && (
+        <div className="card-actions">
           <select
             className="compact-select"
-            aria-label="Moeda do gráfico"
-            value={currency}
-            onChange={(e) => onCurrencyChange(e.target.value as Currency)}
+            aria-label="Mês do gráfico de gastos"
+            value={month}
+            onChange={(e) => onPeriodChange(year, Number(e.target.value))}
           >
-            {availableCurrencies.map((code) => (
-              <option key={code} value={code}>
-                {code}
+            {MONTHS.map((m) => (
+              <option key={m} value={m}>
+                {monthName(m)}
               </option>
             ))}
           </select>
-        )}
+          <select
+            className="compact-select"
+            aria-label="Ano do gráfico de gastos"
+            value={year}
+            onChange={(e) => onPeriodChange(Number(e.target.value), month)}
+          >
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+          {/* Amounts in different currencies can't share one chart; pick which to show. */}
+          {availableCurrencies.length > 1 && (
+            <select
+              className="compact-select"
+              aria-label="Moeda do gráfico"
+              value={currency}
+              onChange={(e) => onCurrencyChange(e.target.value as Currency)}
+            >
+              {availableCurrencies.map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       {slices.length === 0 ? (
-        <p className="empty">Nenhum gasto registrado neste mês.</p>
+        <p className="empty">Nenhum gasto registrado em {formatMonth(year, month)}.</p>
       ) : (
         <div className="spending-body">
-          <div className="donut" role="img" aria-label="Gráfico de gastos por categoria">
+          <div
+            className="donut"
+            role="img"
+            aria-label={`Gráfico de gastos por categoria em ${formatMonth(year, month)}`}
+          >
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie

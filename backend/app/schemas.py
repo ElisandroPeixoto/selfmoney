@@ -13,6 +13,7 @@ from pydantic import (
 from app.models import Bank, Currency, MovementKind, TransactionType
 
 HEX_COLOR = r"^#[0-9a-fA-F]{6}$"
+_Date = date
 
 
 class AccountCreate(BaseModel):
@@ -48,6 +49,7 @@ class CategoryCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     color: str = Field(default="#6366f1", pattern=HEX_COLOR)
     icon: str | None = IconField
+    kind: TransactionType = TransactionType.EXPENSE
 
 
 class CategoryUpdate(BaseModel):
@@ -56,6 +58,7 @@ class CategoryUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
     color: str | None = Field(default=None, pattern=HEX_COLOR)
     icon: str | None = IconField
+    kind: TransactionType | None = None
 
 
 class CategoryRead(BaseModel):
@@ -65,6 +68,7 @@ class CategoryRead(BaseModel):
     name: str
     color: str
     icon: str | None
+    kind: TransactionType
 
 
 class TransactionCreate(BaseModel):
@@ -78,9 +82,16 @@ class TransactionCreate(BaseModel):
 
 
 class TransactionUpdate(BaseModel):
-    """Only the budget link is editable for now."""
+    """Partial update: only fields present in the request body are changed."""
 
-    budget_item_id: int | None
+    description: str | None = Field(default=None, min_length=1, max_length=200)
+    amount: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=2)
+    type: TransactionType | None = None
+    # Annotated via an alias: the field name `date` would otherwise shadow the type here.
+    date: _Date | None = None
+    account_id: int | None = None
+    category_id: int | None = None
+    budget_item_id: int | None = None
 
 
 class TransactionRead(BaseModel):

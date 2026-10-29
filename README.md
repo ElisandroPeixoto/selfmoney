@@ -13,10 +13,13 @@ Sistema de gestão financeira pessoal.
 - Gráfico de gastos do mês por categoria (rosca + tabela com valores e %)
 - Saldo atual de cada conta e saldo total (um total por moeda)
 - **Lançamentos:** registros de despesas e receitas por mês ou pelo ano inteiro, com totais do período
-  e resumo mês a mês; adicionar despesa/receita escolhendo mês, ano, dia, categoria e conta; excluir lançamentos
+  e resumo mês a mês; adicionar despesa/receita escolhendo mês, ano, dia, categoria e conta; editar e
+  excluir lançamentos
 - **Contas:** adicionar, renomear, excluir (junto com seus lançamentos), escolher a moeda (BRL, USD, EUR)
   e o banco (Nubank, Banco do Brasil, Itaú), com o logo do banco
-- **Categorias:** adicionar e remover (os gastos ficam "Sem categoria"), com cor e ícone (emoji) editável
+- **Categorias:** separadas em **despesas** e **receitas**; adicionar, remover (os lançamentos ficam
+  "Sem categoria"), mover entre as duas listas, e cor e ícone (emoji) editáveis. Um lançamento só aceita
+  categorias do seu tipo
 - **Orçamentos:** um orçamento por mês, com categorias próprias (ex.: Cartão de crédito, Assinaturas,
   Taxas) e um valor planejado para cada uma. As despesas do mês são associadas a essas categorias
   (na página do orçamento ou ao lançar a despesa), e o sistema mostra quanto foi gasto e quanto
@@ -82,11 +85,11 @@ API em http://localhost:8000 — documentação interativa em http://localhost:8
 | GET/POST | `/api/accounts` | Listar (com saldo atual) / criar contas |
 | PATCH | `/api/accounts/{id}` | Editar nome, moeda (`BRL`/`USD`/`EUR`) e banco (`nubank`/`banco_do_brasil`/`itau`/`null`) |
 | DELETE | `/api/accounts/{id}` | Excluir conta e seus lançamentos |
-| GET/POST | `/api/categories` | Listar / criar categorias (`name`, `color`, `icon`) |
-| PATCH | `/api/categories/{id}` | Editar nome, cor ou ícone |
+| GET/POST | `/api/categories?kind=` | Listar (opcionalmente só `expense` ou `income`) / criar categorias (`name`, `color`, `icon`, `kind`) |
+| PATCH | `/api/categories/{id}` | Editar nome, cor, ícone ou tipo (`kind`; recusado com 409 se já houver lançamentos do outro tipo) |
 | DELETE | `/api/categories/{id}` | Remover categoria (transações ficam sem categoria) |
 | GET/POST | `/api/transactions?year=&month=&currency=` | Listar (filtrando por ano, mês e moeda) / criar transações (receita ou despesa) |
-| PATCH | `/api/transactions/{id}` | Associar (`budget_item_id`) ou desassociar (`null`) a um item de orçamento |
+| PATCH | `/api/transactions/{id}` | Editar qualquer campo (descrição, valor, tipo, data, conta, categoria, item de orçamento); categoria ou vínculo de orçamento que deixem de valer pela mudança são removidos |
 | DELETE | `/api/transactions/{id}` | Excluir transação |
 | GET/POST | `/api/budgets` | Listar / criar orçamento do mês (`year`, `month`, `currency`; opcional `template_id` ou `source_budget_id`) |
 | GET/DELETE | `/api/budgets/{id}` | Ver (com planejado, gasto e disponível por item) / excluir orçamento |

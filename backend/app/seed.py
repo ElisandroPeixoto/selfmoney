@@ -21,6 +21,8 @@ CATEGORIES = [
     ("Salário", "#008300", "💼"),
 ]
 
+INCOME_CATEGORIES = {"Salário"}
+
 ACCOUNTS = [
     ("Conta Corrente", "2500.00", Bank.NUBANK),
     ("Poupança", "10000.00", Bank.BANCO_DO_BRASIL),
@@ -49,7 +51,15 @@ def seed() -> None:
             return
 
         categories = {
-            name: Category(name=name, color=color, icon=icon) for name, color, icon in CATEGORIES
+            name: Category(
+                name=name,
+                color=color,
+                icon=icon,
+                kind=TransactionType.INCOME
+                if name in INCOME_CATEGORIES
+                else TransactionType.EXPENSE,
+            )
+            for name, color, icon in CATEGORIES
         }
         accounts = {
             name: Account(name=name, initial_balance=Decimal(balance), bank=bank)

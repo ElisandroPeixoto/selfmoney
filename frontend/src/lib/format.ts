@@ -11,6 +11,28 @@ export function formatCurrency(value: string | number, currency = "BRL"): string
   return formatter.format(Number(value));
 }
 
+const roundedCurrencyFormatters = new Map<string, Intl.NumberFormat>();
+
+/** Currency without cents, for compact chart labels (exact values go in tooltips). */
+export function formatCurrencyRounded(value: string | number, currency = "BRL"): string {
+  let formatter = roundedCurrencyFormatters.get(currency);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    });
+    roundedCurrencyFormatters.set(currency, formatter);
+  }
+  return formatter.format(Number(value));
+}
+
+/** "R$", "US$", "€"… as pt-BR writes it. */
+export function currencySymbol(currency: string): string {
+  const parts = new Intl.NumberFormat("pt-BR", { style: "currency", currency }).formatToParts(0);
+  return parts.find((p) => p.type === "currency")?.value ?? currency;
+}
+
 export function formatPercent(ratio: number): string {
   return percent.format(ratio);
 }

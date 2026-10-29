@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import {
   createTransaction,
+  updateTransaction,
   type Account,
   type Budget,
   type Category,
@@ -10,6 +11,7 @@ import {
   type TransactionType,
 } from "../api/client";
 import { daysInMonth, monthName, toIsoDate } from "../lib/format";
+import MoneyInput from "./MoneyInput";
 
 interface Props {
   accounts: Account[];
@@ -18,7 +20,9 @@ interface Props {
   years: number[];
   initialYear: number;
   initialMonth: number;
-  onCreated: (transaction: Transaction) => void;
+  /** When given, the form edits this transaction instead of creating a new one. */
+  transaction?: Transaction;
+  onSaved: (transaction: Transaction) => void;
   onCancel: () => void;
 }
 
@@ -37,24 +41,36 @@ export default function TransactionForm({
   years,
   initialYear,
   initialMonth,
-  onCreated,
+  transaction,
+  onSaved,
   onCancel,
 }: Props) {
-  const [type, setType] = useState<TransactionType>("expense");
-  const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
-  const [year, setYear] = useState(initialYear);
-  const [month, setMonth] = useState(initialMonth);
-  const [day, setDay] = useState(() => defaultDay(initialYear, initialMonth));
-  const [categoryId, setCategoryId] = useState<number | null>(null);
-  const [accountId, setAccountId] = useState<number | null>(accounts[0]?.id ?? null);
-  const [budgetItemId, setBudgetItemId] = useState<number | null>(null);
+  const editing = transaction !== undefined;
+  const [txYear, txMonth, txDay] = transaction?.date.split("-").map(Number) ?? [];
+  const [type, setType] = useState<TransactionType>(transaction?.type ?? "expense");
+  const [description, setDescription] = useState(transaction?.description ?? "");
+  const [amount, setAmount] = useState(transaction?.amount ?? "");
+  const [year, setYear] = useState(txYear ?? initialYear);
+  const [month, setMonth] = useState(txMonth ?? initialMonth);
+  const [day, setDay] = useState(() => txDay ?? defaultDay(initialYear, initialMonth));
+  const [categoryId, setCategoryId] = useState<number | null>(transaction?.category_id ?? null);
+  const [accountId, setAccountId] = useState<number | null>(
+    transaction?.account_id ?? accounts[0]?.id ?? null,
+  );
+  const [budgetItemId, setBudgetItemId] = useState<number | null>(
+    transaction?.budget_item_id ?? null,
+  );
+  // An old transaction may fall outside the usual year range; keep its year selectable.
+  const yearOptions = years.includes(year) ? years : [...years, year].sort((a, b) => b - a);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const maxDay = daysInMonth(year, month);
   const showCurrency = new Set(accounts.map((a) => a.currency)).size > 1;
   const isExpense = type === "expense";
+  // Only categories of the selected type apply; switching type drops a now-invalid choice.
+  const categoryOptions = categories.filter((c) => c.kind === type);
+  const effectiveCategoryId = categoryOptions.some((c) => c.id === categoryId) ? categoryId : null;
 
   // An expense can count against the budget of its month, in its account's currency.
   const account = accounts.find((a) => a.id === accountId);
@@ -86,19 +102,23 @@ export default function TransactionForm({
     if (accountId === null || Number(amount) <= 0 || !description.trim()) return;
     setSaving(true);
     setError(null);
+    const fields = {
+      description: description.trim(),
+      amount,
+      type,
+      date: toIsoDate(year, month, day),
+      account_id: accountId,
+      category_id: effectiveCategoryId,
+      budget_item_id: effectiveBudgetItemId,
+    };
     try {
-      const created = await createTransaction({
-        description: description.trim(),
-        amount,
-        type,
-        date: toIsoDate(year, month, day),
-        account_id: accountId,
-        category_id: categoryId,
-        budget_item_id: effectiveBudgetItemId,
-      });
-      onCreated(created);
-      setDescription("");
-      setAmount("");
+      if (transaction) {
+        onSaved(await updateTransaction(transaction.id, fields));
+      } else {
+        onSaved(await createTransaction(fields));
+        setDescription("");
+        setAmount("");
+      }
     } catch {
       setError("Não foi possível salvar o lançamento.");
     } finally {
@@ -109,9 +129,15 @@ export default function TransactionForm({
   return (
     <section className="card" aria-labelledby="transaction-form-title">
       <h2 id="transaction-form-title" className="card-title">
-        {isExpense ? "Nova despesa" : "Nova receita"}
+        {editing
+          ? isExpense
+            ? "Editar despesa"
+            : "Editar receita"
+          : isExpense
+            ? "Nova despesa"
+            : "Nova receita"}
       </h2>
-      <form onSubmit={handleSubmit} aria-label="Novo lançamento">
+      <form onSubmit={handleSubmit} aria-label={editing ? "Editar lançamento" : "Novo lançamento"}>
         <div className="segmented" role="radiogroup" aria-label="Tipo">
           {(
             [
@@ -146,15 +172,11 @@ export default function TransactionForm({
           </label>
           <label className="field" htmlFor="tx-amount">
             <span>Valor</span>
-            <input
+            <MoneyInput
               id="tx-amount"
-              type="number"
-              min="0.01"
-              step="0.01"
-              inputMode="decimal"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0,00"
+              onChange={setAmount}
+              currency={account?.currency}
               required
             />
           </label>
@@ -179,7 +201,7 @@ export default function TransactionForm({
               value={year}
               onChange={(e) => changePeriod(Number(e.target.value), month)}
             >
-              {years.map((y) => (
+              {yearOptions.map((y) => (
                 <option key={y} value={y}>
                   {y}
                 </option>
@@ -201,11 +223,11 @@ export default function TransactionForm({
             <span>Categoria</span>
             <select
               id="tx-category"
-              value={categoryId ?? ""}
+              value={effectiveCategoryId ?? ""}
               onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : null)}
             >
               <option value="">Sem categoria</option>
-              {categories.map((c) => (
+              {categoryOptions.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.icon ? `${c.icon} ${c.name}` : c.name}
                 </option>
@@ -253,14 +275,14 @@ export default function TransactionForm({
             </span>
           )}
           <button type="button" className="button" onClick={onCancel}>
-            Fechar
+            {editing ? "Cancelar" : "Fechar"}
           </button>
           <button
             type="submit"
             className="button primary"
             disabled={saving || !description.trim() || Number(amount) <= 0}
           >
-            {isExpense ? "Adicionar despesa" : "Adicionar receita"}
+            {editing ? "Salvar alterações" : isExpense ? "Adicionar despesa" : "Adicionar receita"}
           </button>
         </div>
       </form>

@@ -13,6 +13,7 @@ import {
 } from "../api/client";
 import BankLogo from "../components/BankLogo";
 import { TrashIcon } from "../components/icons";
+import MoneyInput from "../components/MoneyInput";
 import { formatCurrency } from "../lib/format";
 import { BANKS, CURRENCIES } from "../lib/options";
 
@@ -76,7 +77,7 @@ function NewAccountForm({ onCreated }: { onCreated: (a: Account) => void }) {
     try {
       const created = await createAccount({
         name: trimmed,
-        initial_balance: initialBalance || "0",
+        initial_balance: initialBalance || "0.00",
         bank,
         currency,
       });
@@ -112,13 +113,12 @@ function NewAccountForm({ onCreated }: { onCreated: (a: Account) => void }) {
           </label>
           <label className="field" htmlFor="new-account-balance">
             <span>Saldo inicial</span>
-            <input
+            <MoneyInput
               id="new-account-balance"
-              type="number"
-              step="0.01"
-              inputMode="decimal"
               value={initialBalance}
-              onChange={(e) => setInitialBalance(e.target.value)}
+              onChange={setInitialBalance}
+              currency={currency}
+              allowNegative
             />
           </label>
           <label className="field" htmlFor="new-account-bank">

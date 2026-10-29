@@ -82,7 +82,7 @@ describe("Movements page", () => {
     expect(options).toHaveLength(1);
     expect(options[0]).toHaveTextContent("Poupança — R$ 50,00");
 
-    await userEvent.type(within(form).getByLabelText("Valor"), "250");
+    await userEvent.type(within(form).getByLabelText("Valor"), "25000");
     const submit = within(form).getByRole("button", { name: "Transferir" });
     expect(submit).toBeDisabled();
     await userEvent.type(within(form).getByLabelText(/justificativa/i), "Reserva");
@@ -95,7 +95,7 @@ describe("Movements page", () => {
     );
     const post = spy.mock.calls.find(([, init]) => init?.method === "POST");
     expect(body(post?.[1])).toEqual({
-      amount: "250",
+      amount: "250.00",
       reason: "Reserva",
       from_account_id: 1,
       to_account_id: 2,
@@ -118,12 +118,12 @@ describe("Movements page", () => {
     await userEvent.click(await screen.findByRole("tab", { name: "Adicionar dinheiro" }));
     const form = screen.getByRole("form", { name: "Adicionar dinheiro" });
     await userEvent.selectOptions(within(form).getByLabelText("Conta"), "2");
-    await userEvent.type(within(form).getByLabelText("Valor"), "80");
+    await userEvent.type(within(form).getByLabelText("Valor"), "8000");
     await userEvent.type(within(form).getByLabelText(/justificativa/i), "Reembolso do almoço");
     await userEvent.click(within(form).getByRole("button", { name: "Adicionar" }));
 
     const post = spy.mock.calls.find(([, init]) => init?.method === "POST");
-    expect(body(post?.[1])).toEqual({ amount: "80", reason: "Reembolso do almoço", account_id: 2 });
+    expect(body(post?.[1])).toEqual({ amount: "80.00", reason: "Reembolso do almoço", account_id: 2 });
   });
 
   it("warns when a withdrawal leaves the balance negative and does nothing if cancelled", async () => {
@@ -133,7 +133,7 @@ describe("Movements page", () => {
 
     const form = await screen.findByRole("form", { name: "Retirar dinheiro" });
     await userEvent.selectOptions(within(form).getByLabelText("Conta"), "2");
-    await userEvent.type(within(form).getByLabelText("Valor"), "75");
+    await userEvent.type(within(form).getByLabelText("Valor"), "7500");
     expect(within(form).getByText(/saldo ficará negativo/)).toBeInTheDocument();
 
     await userEvent.type(within(form).getByLabelText(/justificativa/i), "Emergência");

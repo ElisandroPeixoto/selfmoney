@@ -122,12 +122,12 @@ describe("Budgets page", () => {
     renderApp("/orcamentos/7");
 
     await userEvent.type(await screen.findByLabelText("Nova categoria"), "Assinaturas");
-    await userEvent.type(screen.getByLabelText("Valor planejado"), "80");
+    await userEvent.type(screen.getByLabelText("Valor planejado"), "8000");
     await userEvent.click(screen.getByRole("button", { name: "Adicionar" }));
 
     expect(await screen.findByText("Assinaturas")).toBeInTheDocument();
     const post = spy.mock.calls.find(([, init]) => init?.method === "POST");
-    expect(body(post?.[1])).toEqual({ name: "Assinaturas", planned: "80" });
+    expect(body(post?.[1])).toEqual({ name: "Assinaturas", planned: "80.00" });
     const summary = screen.getByRole("region", { name: "Resumo do orçamento" });
     expect(summary).toHaveTextContent("R$ 1.080,00");
   });

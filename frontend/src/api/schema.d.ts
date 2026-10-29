@@ -494,6 +494,8 @@ export interface components {
             color: string;
             /** Icon */
             icon?: string | null;
+            /** @default expense */
+            kind: components["schemas"]["TransactionType"];
         };
         /** CategoryRead */
         CategoryRead: {
@@ -505,6 +507,7 @@ export interface components {
             color: string;
             /** Icon */
             icon: string | null;
+            kind: components["schemas"]["TransactionType"];
         };
         /** CategorySpending */
         CategorySpending: {
@@ -530,6 +533,7 @@ export interface components {
             color?: string | null;
             /** Icon */
             icon?: string | null;
+            kind?: components["schemas"]["TransactionType"] | null;
         };
         /**
          * Currency
@@ -654,11 +658,22 @@ export interface components {
         TransactionType: "income" | "expense";
         /**
          * TransactionUpdate
-         * @description Only the budget link is editable for now.
+         * @description Partial update: only fields present in the request body are changed.
          */
         TransactionUpdate: {
+            /** Description */
+            description?: string | null;
+            /** Amount */
+            amount?: number | string | null;
+            type?: components["schemas"]["TransactionType"] | null;
+            /** Date */
+            date?: string | null;
+            /** Account Id */
+            account_id?: number | null;
+            /** Category Id */
+            category_id?: number | null;
             /** Budget Item Id */
-            budget_item_id: number | null;
+            budget_item_id?: number | null;
         };
         /** TransferCreate */
         TransferCreate: {
@@ -843,7 +858,9 @@ export interface operations {
     };
     list_categories_api_categories_get: {
         parameters: {
-            query?: never;
+            query?: {
+                kind?: components["schemas"]["TransactionType"] | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -857,6 +874,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CategoryRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

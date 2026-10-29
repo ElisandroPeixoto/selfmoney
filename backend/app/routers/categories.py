@@ -3,15 +3,20 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Category, Transaction
+from app.models import Category, Transaction, TransactionType
 from app.schemas import CategoryCreate, CategoryRead, CategoryUpdate
 
 router = APIRouter(prefix="/categories", tags=["categories"])
 
 
 @router.get("", response_model=list[CategoryRead])
-def list_categories(db: Session = Depends(get_db)) -> list[Category]:
-    return list(db.scalars(select(Category).order_by(Category.name)))
+def list_categories(
+    kind: TransactionType | None = None, db: Session = Depends(get_db)
+) -> list[Category]:
+    query = select(Category).order_by(Category.name)
+    if kind is not None:
+        query = query.where(Category.kind == kind)
+    return list(db.scalars(query))
 
 
 def _ensure_unique_name(db: Session, name: str, exclude_id: int | None = None) -> None:
@@ -40,11 +45,22 @@ def update_category(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Category not found")
 
     changes = payload.model_dump(exclude_unset=True)
-    for field in ("name", "color"):
+    for field in ("name", "color", "kind"):
         if field in changes and changes[field] is None:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"'{field}' cannot be null")
     if "name" in changes:
         _ensure_unique_name(db, changes["name"], exclude_id=category_id)
+    if "kind" in changes and changes["kind"] != category.kind:
+        mismatched = db.scalar(
+            select(Transaction.id)
+            .where(Transaction.category_id == category_id, Transaction.type != changes["kind"])
+            .limit(1)
+        )
+        if mismatched is not None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "Category is used by transactions of the other type",
+            )
 
     for field, value in changes.items():
         setattr(category, field, value)

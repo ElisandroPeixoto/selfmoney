@@ -10,6 +10,7 @@ import {
   type MovementKind,
 } from "../api/client";
 import { formatCurrency } from "../lib/format";
+import MoneyInput from "./MoneyInput";
 
 const TABS: { kind: MovementKind; label: string; submit: string }[] = [
   { kind: "transfer", label: "Transferir", submit: "Transferir" },
@@ -179,15 +180,11 @@ export default function MovementForm({ accounts, kind, onKindChange, onRecorded 
           )}
           <label className="field" htmlFor="movement-amount">
             <span>Valor</span>
-            <input
+            <MoneyInput
               id="movement-amount"
-              type="number"
-              min="0.01"
-              step="0.01"
-              inputMode="decimal"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0,00"
+              onChange={setAmount}
+              currency={(from ?? effectiveTo)?.currency}
               required
             />
           </label>

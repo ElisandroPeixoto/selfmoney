@@ -11,6 +11,7 @@ export type CategoryCreate = Schemas["CategoryCreate"];
 export type CategoryUpdate = Schemas["CategoryUpdate"];
 export type Transaction = Schemas["TransactionRead"];
 export type TransactionCreate = Schemas["TransactionCreate"];
+export type TransactionUpdate = Schemas["TransactionUpdate"];
 export type TransactionType = Schemas["TransactionType"];
 export type MonthTotals = Schemas["MonthTotals"];
 export type Budget = Schemas["BudgetRead"];
@@ -108,10 +109,7 @@ export function createTransaction(payload: TransactionCreate): Promise<Transacti
   return request<Transaction>("/transactions", { method: "POST", body: JSON.stringify(payload) });
 }
 
-export function updateTransaction(
-  id: number,
-  changes: { budget_item_id: number | null },
-): Promise<Transaction> {
+export function updateTransaction(id: number, changes: TransactionUpdate): Promise<Transaction> {
   return request<Transaction>(`/transactions/${id}`, {
     method: "PATCH",
     body: JSON.stringify(changes),

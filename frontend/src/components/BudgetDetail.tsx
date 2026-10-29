@@ -18,6 +18,7 @@ import { formatCurrency, formatDate, formatMonth } from "../lib/format";
 import BudgetProgress from "./BudgetProgress";
 import CategoryLabel from "./CategoryLabel";
 import { TrashIcon } from "./icons";
+import MoneyInput from "./MoneyInput";
 
 const ITEM_SUGGESTIONS = [
   "Cartão de crédito",
@@ -89,13 +90,7 @@ function ItemRow({
           </label>
           <label className="field">
             <span>Valor planejado</span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={planned}
-              onChange={(e) => setPlanned(e.target.value)}
-            />
+            <MoneyInput value={planned} onChange={setPlanned} currency={budget.currency} />
           </label>
           <button type="button" className="button" onClick={() => setEditing(false)}>
             Cancelar
@@ -274,15 +269,7 @@ export default function BudgetDetail({
           </label>
           <label className="field">
             <span>Valor planejado</span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              inputMode="decimal"
-              value={planned}
-              onChange={(e) => setPlanned(e.target.value)}
-              placeholder="0,00"
-            />
+            <MoneyInput value={planned} onChange={setPlanned} currency={budget.currency} />
           </label>
           <button
             type="submit"
@@ -305,7 +292,7 @@ export default function BudgetDetail({
             Despesas de {title}
           </h3>
           <Link to="/lancamentos?nova=1" className="link-button">
-            + Nova despesa
+            + Novo lançamento
           </Link>
         </div>
         {expenses === null && <p className="muted">Carregando…</p>}

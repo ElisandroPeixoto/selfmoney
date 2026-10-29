@@ -16,7 +16,7 @@ import {
   type Transaction,
 } from "../api/client";
 import CategoryLabel from "../components/CategoryLabel";
-import { TrashIcon } from "../components/icons";
+import { EditIcon, TrashIcon } from "../components/icons";
 import TransactionForm from "../components/TransactionForm";
 import { formatCurrency, formatDate, formatMonth, monthName } from "../lib/format";
 
@@ -44,6 +44,7 @@ export default function Transactions() {
   const [records, setRecords] = useState<Records>({ status: "loading" });
   const [reloadKey, setReloadKey] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Transaction | null>(null);
   const showForm = searchParams.get("nova") === "1";
 
   useEffect(() => {
@@ -85,10 +86,22 @@ export default function Transactions() {
   );
 
   function setShowForm(open: boolean) {
+    setEditing(null);
     setSearchParams(open ? { nova: "1" } : {}, { replace: true });
   }
 
-  function handleCreated(tx: Transaction) {
+  function startEditing(tx: Transaction) {
+    setSearchParams({}, { replace: true });
+    setNotice(null);
+    setEditing(tx);
+    // The form opens above the filters; bring it into view.
+    requestAnimationFrame(() =>
+      document.getElementById("transaction-form-title")?.scrollIntoView({ block: "center" }),
+    );
+  }
+
+  function handleSaved(tx: Transaction) {
+    const verb = editing ? "atualizado" : "adicionado";
     const account = accountsById.get(tx.account_id);
     const [txYear, txMonth] = tx.date.split("-").map(Number);
     const visible =
@@ -97,11 +110,12 @@ export default function Transactions() {
       (month === WHOLE_YEAR || txMonth === month);
     setNotice(
       visible
-        ? "Lançamento adicionado."
-        : `Lançamento adicionado em ${formatMonth(txYear, txMonth)}` +
+        ? `Lançamento ${verb}.`
+        : `Lançamento ${verb} em ${formatMonth(txYear, txMonth)}` +
             (account && account.currency !== currency ? ` (${account.currency})` : "") +
             ".",
     );
+    setEditing(null);
     setReloadKey((k) => k + 1);
   }
 
@@ -137,23 +151,26 @@ export default function Transactions() {
           <h1>Lançamentos</h1>
           <p className="muted">Despesas e receitas por mês e por ano.</p>
         </div>
-        {!showForm && (
+        {!showForm && !editing && (
           <button type="button" className="button primary" onClick={() => setShowForm(true)}>
-            + Nova despesa
+            + Novo lançamento
           </button>
         )}
       </header>
 
-      {showForm && accounts && (
+      {(showForm || editing) && accounts && (
         <TransactionForm
+          // A fresh form per transaction, so its fields start from that transaction.
+          key={editing?.id ?? "new"}
           accounts={accounts}
           categories={categories}
           budgets={budgets}
           years={yearOptions(today.getFullYear())}
           initialYear={year}
           initialMonth={month === WHOLE_YEAR ? today.getMonth() + 1 : month}
-          onCreated={handleCreated}
-          onCancel={() => setShowForm(false)}
+          transaction={editing ?? undefined}
+          onSaved={handleSaved}
+          onCancel={() => (editing ? setEditing(null) : setShowForm(false))}
         />
       )}
 
@@ -311,7 +328,16 @@ export default function Transactions() {
                             {isIncome ? "+ " : "− "}
                             {formatCurrency(tx.amount, currency)}
                           </td>
-                          <td>
+                          <td className="row-actions">
+                            <button
+                              type="button"
+                              className="icon-button"
+                              onClick={() => startEditing(tx)}
+                              aria-label={`Editar ${tx.description}`}
+                              title="Editar"
+                            >
+                              <EditIcon />
+                            </button>
                             <button
                               type="button"
                               className="icon-button danger"

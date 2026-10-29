@@ -79,8 +79,10 @@ describe("Accounts page: add and remove", () => {
     const form = await screen.findByRole("form", { name: "Nova conta" });
     await userEvent.type(within(form).getByLabelText("Nome"), "Itaú PJ");
     const balance = within(form).getByLabelText("Saldo inicial");
+    expect(balance).toHaveValue("0,00");
     await userEvent.clear(balance);
-    await userEvent.type(balance, "250");
+    await userEvent.type(balance, "25000");
+    expect(balance).toHaveValue("250,00");
     await userEvent.selectOptions(within(form).getByLabelText("Banco"), "itau");
     await userEvent.click(within(form).getByRole("button", { name: "Adicionar conta" }));
 
@@ -88,7 +90,7 @@ describe("Accounts page: add and remove", () => {
     const post = fetchSpy.mock.calls.find(([, init]) => init?.method === "POST");
     expect(JSON.parse(String(post?.[1]?.body))).toEqual({
       name: "Itaú PJ",
-      initial_balance: "250",
+      initial_balance: "250.00",
       bank: "itau",
       currency: "BRL",
     });

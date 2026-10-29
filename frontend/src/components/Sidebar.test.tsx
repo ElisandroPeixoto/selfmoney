@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { mockApi, renderApp } from "../test/utils";
@@ -33,6 +33,33 @@ describe("Sidebar", () => {
     renderApp("/contas");
     expect(screen.getByRole("complementary")).toHaveClass("collapsed");
     await screen.findByText(/nenhuma conta cadastrada/i);
+  });
+
+  it("lists Dashboard first, then a separator and the rest in alphabetical order", () => {
+    renderApp("/contas");
+    const nav = screen.getByRole("navigation", { name: "Principal" });
+    const items = within(nav).getAllByRole("listitem");
+
+    expect(items[0]).toHaveTextContent("Dashboard");
+    expect(items[0].nextElementSibling).toBe(within(nav).getByRole("separator"));
+    expect(items.slice(1).map((li) => li.textContent)).toEqual([
+      "Categorias",
+      "Contas",
+      "Lançamentos",
+      "Movimentações",
+      "Orçamentos",
+    ]);
+  });
+
+  it("shows the logo for the current theme above the name", async () => {
+    localStorage.setItem("selfmoney.theme", "light");
+    const { container } = renderApp("/contas");
+    const logo = container.querySelector<HTMLImageElement>(".brand-logo")!;
+    expect(logo.src).toContain("logo-light");
+    expect(logo.nextElementSibling).toHaveTextContent("SelfMoney");
+
+    await userEvent.click(screen.getByRole("button", { name: /ativar modo escuro/i }));
+    expect(logo.src).toContain("logo-dark");
   });
 
   it("navigates to the categories page", async () => {

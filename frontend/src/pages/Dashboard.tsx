@@ -1,10 +1,23 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { fetchDashboardSummary, type Currency, type DashboardSummary } from "../api/client";
+import {
+  fetchBudgets,
+  fetchDashboardSummary,
+  type Budget,
+  type Currency,
+  type DashboardSummary,
+} from "../api/client";
 import AccountsCard from "../components/AccountsCard";
+import BudgetChart from "../components/BudgetChart";
+import IncomeExpenseChart from "../components/IncomeExpenseChart";
 import SpendingChart from "../components/SpendingChart";
 import { formatMonth } from "../lib/format";
+
+// The yearly charts can look back a few years (and at next year's planned entries).
+function yearOptions(current: number): number[] {
+  return Array.from({ length: 7 }, (_, i) => current + 1 - i);
+}
 
 type State =
   | { status: "loading" }
@@ -13,12 +26,24 @@ type State =
 
 export default function Dashboard() {
   const [state, setState] = useState<State>({ status: "loading" });
+  const today = new Date();
   const [currency, setCurrency] = useState<Currency>("BRL");
+  const [period, setPeriod] = useState({ year: today.getFullYear(), month: today.getMonth() + 1 });
+  const [budgets, setBudgets] = useState<Budget[] | null>(null);
 
   useEffect(() => {
-    const now = new Date();
     const controller = new AbortController();
-    fetchDashboardSummary(now.getFullYear(), now.getMonth() + 1, currency, controller.signal)
+    fetchBudgets(controller.signal)
+      .then(setBudgets)
+      // The budget chart is secondary: without it the rest of the dashboard still works.
+      .catch(() => !controller.signal.aborted && setBudgets([]));
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    // While a new period loads, the previous data stays on screen instead of a spinner.
+    fetchDashboardSummary(period.year, period.month, currency, controller.signal)
       .then((summary) => setState({ status: "ready", summary }))
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
@@ -27,19 +52,17 @@ export default function Dashboard() {
         }
       });
     return () => controller.abort();
-  }, [currency]);
+  }, [currency, period]);
 
   return (
     <div className="page">
       <header className="page-header page-header-row">
         <div>
           <h1>Dashboard</h1>
-          {state.status === "ready" && (
-            <p className="muted">{formatMonth(state.summary.year, state.summary.month)}</p>
-          )}
+          <p className="muted">{formatMonth(today.getFullYear(), today.getMonth() + 1)}</p>
         </div>
         <Link to="/lancamentos?nova=1" className="button primary">
-          + Nova despesa
+          + Novo lançamento
         </Link>
       </header>
 
@@ -61,7 +84,16 @@ export default function Dashboard() {
             currency={state.summary.currency}
             availableCurrencies={state.summary.balances_by_currency.map((b) => b.currency)}
             onCurrencyChange={setCurrency}
+            year={period.year}
+            month={period.month}
+            years={yearOptions(today.getFullYear())}
+            onPeriodChange={(year, month) => setPeriod({ year, month })}
           />
+          <IncomeExpenseChart
+            years={yearOptions(today.getFullYear())}
+            availableCurrencies={state.summary.balances_by_currency.map((b) => b.currency)}
+          />
+          {budgets && <BudgetChart budgets={budgets} />}
         </div>
       )}
     </div>

@@ -7,6 +7,9 @@ from app.models import Account, Category, Currency, Transaction
 from app.schemas import TransactionCreate, TransactionRead, TransactionUpdate
 from app.services import BudgetLinkError, check_budget_link, period_bounds
 
+# Fields a transaction must always have; PATCH may change them but not clear them.
+REQUIRED_FIELDS = ("description", "amount", "type", "date", "account_id")
+
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
 
@@ -36,23 +39,43 @@ def list_transactions(
     return list(db.scalars(query))
 
 
-def _check_budget_link(db: Session, item_id: int, tx: Transaction | TransactionCreate) -> None:
-    account = db.get(Account, tx.account_id)
-    assert account is not None
+def _invalid(message: str) -> HTTPException:
+    return HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, message)
+
+
+def _category_error(db: Session, data: TransactionCreate) -> str | None:
+    if data.category_id is None:
+        return None
+    category = db.get(Category, data.category_id)
+    if category is None:
+        return "Category not found"
+    if category.kind != data.type:
+        return "Category kind doesn't match the transaction type"
+    return None
+
+
+def _budget_error(db: Session, data: TransactionCreate, account: Account) -> str | None:
+    if data.budget_item_id is None:
+        return None
     try:
-        check_budget_link(db, item_id, tx.type, tx.date, account)
+        check_budget_link(db, data.budget_item_id, data.type, data.date, account)
     except BudgetLinkError as error:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from error
+        return str(error)
+    return None
+
+
+def _validate(db: Session, data: TransactionCreate) -> None:
+    account = db.get(Account, data.account_id)
+    if account is None:
+        raise _invalid("Account not found")
+    for error in (_category_error(db, data), _budget_error(db, data, account)):
+        if error:
+            raise _invalid(error)
 
 
 @router.post("", response_model=TransactionRead, status_code=status.HTTP_201_CREATED)
 def create_transaction(payload: TransactionCreate, db: Session = Depends(get_db)) -> Transaction:
-    if db.get(Account, payload.account_id) is None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Account not found")
-    if payload.category_id is not None and db.get(Category, payload.category_id) is None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Category not found")
-    if payload.budget_item_id is not None:
-        _check_budget_link(db, payload.budget_item_id, payload)
+    _validate(db, payload)
     transaction = Transaction(**payload.model_dump())
     db.add(transaction)
     db.commit()
@@ -66,9 +89,26 @@ def update_transaction(
     transaction = db.get(Transaction, transaction_id)
     if transaction is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Transaction not found")
-    if payload.budget_item_id is not None:
-        _check_budget_link(db, payload.budget_item_id, transaction)
-    transaction.budget_item_id = payload.budget_item_id
+
+    changes = payload.model_dump(exclude_unset=True)
+    for field in REQUIRED_FIELDS:
+        if field in changes and changes[field] is None:
+            raise _invalid(f"'{field}' cannot be null")
+    current = TransactionRead.model_validate(transaction).model_dump(exclude={"id"})
+    merged = TransactionCreate.model_validate({**current, **changes})
+
+    # A category or budget link that only became invalid because of other changes (e.g. the
+    # type or month changed) is dropped; one sent explicitly in this request must be valid.
+    account = db.get(Account, merged.account_id)
+    if account is not None:
+        if "category_id" not in changes and _category_error(db, merged):
+            merged.category_id = None
+        if "budget_item_id" not in changes and _budget_error(db, merged, account):
+            merged.budget_item_id = None
+    _validate(db, merged)
+
+    for field, value in merged.model_dump().items():
+        setattr(transaction, field, value)
     db.commit()
     return transaction
 

@@ -16,7 +16,10 @@ const accounts: Account[] = [
   },
   { id: 2, name: "Carteira", initial_balance: "0", balance: "0", currency: "BRL", bank: null },
 ];
-const categories: Category[] = [{ id: 5, name: "Mercado", color: "#2a78d6", icon: "🛒" }];
+const categories: Category[] = [
+  { id: 5, name: "Mercado", color: "#2a78d6", icon: "🛒", kind: "expense" },
+  { id: 6, name: "Freelas", color: "#008300", icon: null, kind: "income" },
+];
 
 const months: MonthTotals[] = Array.from({ length: 12 }, (_, i) => ({
   month: i + 1,
@@ -123,11 +126,12 @@ describe("Transactions page", () => {
     });
     renderApp("/lancamentos");
 
-    await userEvent.click(await screen.findByRole("button", { name: "+ Nova despesa" }));
+    await userEvent.click(await screen.findByRole("button", { name: "+ Novo lançamento" }));
     const form = screen.getByRole("form", { name: "Novo lançamento" });
 
     await userEvent.type(within(form).getByLabelText("Descrição"), "Feira");
-    await userEvent.type(within(form).getByLabelText("Valor"), "42.90");
+    await userEvent.type(within(form).getByLabelText("Valor"), "4290");
+    expect(within(form).getByLabelText("Valor")).toHaveValue("42,90");
     await userEvent.selectOptions(within(form).getByLabelText("Mês"), "2");
     await userEvent.selectOptions(within(form).getByLabelText("Ano"), "2025");
     await userEvent.selectOptions(within(form).getByLabelText("Categoria"), "5");
@@ -137,7 +141,7 @@ describe("Transactions page", () => {
     const post = spy.mock.calls.find(([, init]) => init?.method === "POST");
     expect(JSON.parse(String(post?.[1]?.body))).toEqual({
       description: "Feira",
-      amount: "42.9",
+      amount: "42.90",
       type: "expense",
       // Day defaults to today's (20), kept when switching to another month.
       date: "2025-02-20",
@@ -172,7 +176,7 @@ describe("Transactions page", () => {
 
     const form = await screen.findByRole("form", { name: "Novo lançamento" });
     await userEvent.type(within(form).getByLabelText("Descrição"), "Tarifa");
-    await userEvent.type(within(form).getByLabelText("Valor"), "12");
+    await userEvent.type(within(form).getByLabelText("Valor"), "1200");
     await userEvent.selectOptions(within(form).getByLabelText("Item do orçamento"), "80");
     await userEvent.click(within(form).getByRole("button", { name: "Adicionar despesa" }));
 
@@ -194,9 +198,17 @@ describe("Transactions page", () => {
     renderApp("/lancamentos?nova=1");
 
     const form = await screen.findByRole("form", { name: "Novo lançamento" });
+    const categoryOptions = () =>
+      within(within(form).getByLabelText("Categoria"))
+        .getAllByRole("option")
+        .map((o) => o.textContent);
+    expect(categoryOptions()).toEqual(["Sem categoria", "🛒 Mercado"]);
+
     await userEvent.click(within(form).getByRole("radio", { name: "Receita" }));
+    // Income shows only income categories.
+    expect(categoryOptions()).toEqual(["Sem categoria", "Freelas"]);
     await userEvent.type(within(form).getByLabelText("Descrição"), "Freela");
-    await userEvent.type(within(form).getByLabelText("Valor"), "500");
+    await userEvent.type(within(form).getByLabelText("Valor"), "50000");
     await userEvent.click(within(form).getByRole("button", { name: "Adicionar receita" }));
 
     const post = spy.mock.calls.find(([, init]) => init?.method === "POST");
@@ -206,6 +218,59 @@ describe("Transactions page", () => {
       account_id: 1,
       category_id: null,
     });
+  });
+
+  it("edits an existing record", async () => {
+    const spy = setup({
+      "PATCH /api/transactions/10": (init) => ({
+        body: { ...march[0], ...JSON.parse(String(init?.body)) },
+      }),
+    });
+    renderApp("/lancamentos");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Editar Supermercado" }));
+    const form = screen.getByRole("form", { name: "Editar lançamento" });
+
+    // The form starts from the record's current values.
+    expect(screen.getByRole("heading", { name: "Editar despesa" })).toBeInTheDocument();
+    expect(within(form).getByLabelText("Descrição")).toHaveValue("Supermercado");
+    expect(within(form).getByLabelText("Valor")).toHaveValue("250,50");
+    expect(within(form).getByLabelText("Mês")).toHaveValue("3");
+    expect(within(form).getByLabelText("Dia")).toHaveValue(15);
+    expect(within(form).getByLabelText("Categoria")).toHaveValue("5");
+    expect(within(form).getByLabelText("Saiu da conta")).toHaveValue("1");
+
+    const description = within(form).getByLabelText("Descrição");
+    await userEvent.clear(description);
+    await userEvent.type(description, "Supermercado do mês");
+    await userEvent.type(within(form).getByLabelText("Valor"), "0");
+    await userEvent.selectOptions(within(form).getByLabelText("Saiu da conta"), "2");
+    await userEvent.click(within(form).getByRole("button", { name: "Salvar alterações" }));
+
+    const patch = spy.mock.calls.find(([, init]) => init?.method === "PATCH");
+    expect(JSON.parse(String(patch?.[1]?.body))).toEqual({
+      description: "Supermercado do mês",
+      amount: "2505.00",
+      type: "expense",
+      date: "2026-03-15",
+      account_id: 2,
+      category_id: 5,
+      budget_item_id: null,
+    });
+    expect(await screen.findByRole("status")).toHaveTextContent("Lançamento atualizado.");
+    expect(screen.queryByRole("form", { name: "Editar lançamento" })).not.toBeInTheDocument();
+  });
+
+  it("cancels an edit without saving", async () => {
+    const spy = setup();
+    renderApp("/lancamentos");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Editar Salário" }));
+    expect(screen.getByRole("heading", { name: "Editar receita" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    expect(screen.queryByRole("form", { name: "Editar lançamento" })).not.toBeInTheDocument();
+    expect(spy.mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(false);
   });
 
   it("deletes a record after confirmation", async () => {

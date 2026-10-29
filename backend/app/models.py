@@ -66,6 +66,12 @@ class Category(Base):
     color: Mapped[str] = mapped_column(String(7), default="#6366f1")
     # A single emoji chosen in the UI; optional.
     icon: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Whether the category classifies expenses or income; must match its transactions' type.
+    kind: Mapped[TransactionType] = mapped_column(
+        _string_enum(TransactionType, 16),
+        default=TransactionType.EXPENSE,
+        server_default=TransactionType.EXPENSE.value,
+    )
 
     transactions: Mapped[list["Transaction"]] = relationship(back_populates="category")
 
