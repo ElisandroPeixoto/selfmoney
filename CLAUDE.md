@@ -74,7 +74,7 @@ frontend/src/
   pages/           Dashboard, Transactions (Lançamentos), Budgets (Orçamentos), Movements, Accounts,
                    Categories, Reports (Relatórios), CreditCards (Cartão de Crédito)
   components/      Sidebar, ThemeToggle, AccountsCard, SpendingChart, IncomeExpenseChart, BudgetChart, BudgetDetail,
-                   BudgetProgress, TransactionForm, MovementForm, CardForm, CardPurchaseForm, CardBills, MoneyInput, IconPicker, BankLogo, CategoryLabel, icons
+                   BudgetProgress, TransactionForm, MovementForm, MovementEditor, CardForm, CardPurchaseForm, CardBills, MoneyInput, IconPicker, BankLogo, CategoryLabel, icons
   lib/format.ts    formatação pt-BR: moeda, %, mês, data, datas ISO
   lib/budgets.ts   budgetFor: orçamento de um mês/moeda (formulário e lista de Lançamentos)
   lib/download.ts  saveFile: entrega um Blob como download
@@ -121,7 +121,11 @@ Rotas do frontend: `/` Dashboard, `/lancamentos`, `/orcamentos` e `/orcamentos/:
   "Perto do limite" = a partir de 80% do planejado (`NEAR_LIMIT` em `BudgetChart.tsx`).
 - **Movimentações** (`AccountMovement`: `transfer`, `deposit`, `withdrawal`): não pertencem a mês,
   não aparecem em Lançamentos nem em relatórios mensais, mas alteram saldos. **Justificativa obrigatória**
-  (≥ 3 caracteres, aparada). O log é **append-only**: não existe editar/excluir na API. Os nomes das contas
+  (≥ 3 caracteres, aparada). Editar (`PATCH /api/movements/{id}`,
+  `MovementEditor`) muda valor, justificativa e contas, revalidando como na criação (contas
+  diferentes e da mesma moeda; depósito não tem origem, retirada não tem destino) e recopiando os
+  nomes; tipo e `created_at` não mudam. Excluir (`DELETE`, com `window.confirm`) remove o registro e
+  desfaz o efeito nos saldos. Os nomes das contas
   são copiados no registro para o log continuar legível se a conta for renomeada/excluída.
 - **Cartão de crédito** (`CreditCard`, `CardPurchase`): a compra guarda o **valor total**, o número
   de parcelas (1–48) e a fatura (mês) da 1ª parcela; as demais seguem mês a mês. As parcelas **não são
@@ -181,8 +185,8 @@ Rotas do frontend: `/` Dashboard, `/lancamentos`, `/orcamentos` e `/orcamentos/:
 - Formatação de valores sempre por `lib/format.ts` (`formatCurrency(value, currency)`, `formatMonth`, …).
 - **Campos de dinheiro usam `MoneyInput`**: símbolo da moeda na frente (desenhado por CSS), centavos
   sempre visíveis, digitação preenchendo a partir dos centavos; entrega string decimal com 2 casas.
-- Ações irreversíveis pedem `window.confirm` (excluir conta/categoria/orçamento/lançamento, registrar
-  movimentação).
+- Ações irreversíveis pedem `window.confirm` (excluir conta/categoria/orçamento/lançamento/movimentação,
+  registrar movimentação).
 - Acessibilidade: controles com `aria-label` quando só têm ícone; status nunca só por cor (ícone + texto);
   gráficos com `role="img"` + `aria-label` e, quando útil, tabela `visually-hidden` (dentro de uma `div`
   com essa classe — tabela ignora altura de 1px).

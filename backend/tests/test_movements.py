@@ -195,3 +195,81 @@ def test_movements_stay_out_of_monthly_records(client: TestClient) -> None:
     summary = client.get("/api/dashboard/summary").json()
     assert summary["balances_by_currency"] == [{"currency": "BRL", "total": "99.00"}]
     assert summary["month_expenses"] == "0.00"
+
+
+def test_deleting_a_movement_undoes_its_effect(client: TestClient) -> None:
+    a = account(client, "Origem", "100")
+    b = account(client, "Destino")
+    moved = post(
+        client,
+        "/api/movements/transfer",
+        {"from_account_id": a["id"], "to_account_id": b["id"], "amount": "40", "reason": "Reserva"},
+    )
+    post(client, "/api/movements/deposit", {"account_id": b["id"], "amount": "5", "reason": "Pix"})
+    assert balances(client) == {"Origem": "60.00", "Destino": "45.00"}
+
+    assert client.delete(f"/api/movements/{moved['id']}").status_code == 204
+    assert balances(client) == {"Origem": "100.00", "Destino": "5.00"}
+    assert [m["kind"] for m in client.get("/api/movements").json()] == ["deposit"]
+    assert client.delete(f"/api/movements/{moved['id']}").status_code == 404
+
+
+def patch(client: TestClient, movement_id: int, changes: dict, expected: int = 200) -> dict:
+    response = client.patch(f"/api/movements/{movement_id}", json=changes)
+    assert response.status_code == expected, response.text
+    return response.json()
+
+
+def test_editing_a_movement_updates_balances(client: TestClient) -> None:
+    a = account(client, "Origem", "100")
+    b = account(client, "Destino")
+    c = account(client, "Reserva")
+    moved = post(
+        client,
+        "/api/movements/transfer",
+        {"from_account_id": a["id"], "to_account_id": b["id"], "amount": "40", "reason": "Reserva"},
+    )
+
+    edited = patch(
+        client,
+        moved["id"],
+        {"amount": "25.50", "reason": "  Reserva ajustada ", "to_account_id": c["id"]},
+    )
+    assert (edited["amount"], edited["reason"]) == ("25.50", "Reserva ajustada")
+    assert (edited["to_account_id"], edited["to_account_name"]) == (c["id"], "Reserva")
+    assert edited["created_at"] == moved["created_at"]
+    assert balances(client) == {"Origem": "74.50", "Destino": "0.00", "Reserva": "25.50"}
+
+    deposit = post(
+        client, "/api/movements/deposit", {"account_id": a["id"], "amount": "5", "reason": "Pix"}
+    )
+    patch(client, deposit["id"], {"to_account_id": b["id"]})
+    assert balances(client)["Destino"] == "5.00"
+
+
+def test_movement_edit_validation(client: TestClient) -> None:
+    a = account(client, "Origem", "100")
+    b = account(client, "Destino")
+    usd = account(client, "Wise", currency="USD")
+    moved = post(
+        client,
+        "/api/movements/transfer",
+        {"from_account_id": a["id"], "to_account_id": b["id"], "amount": "40", "reason": "Reserva"},
+    )
+    deposit = post(
+        client, "/api/movements/deposit", {"account_id": a["id"], "amount": "5", "reason": "Pix"}
+    )
+
+    patch(client, moved["id"], {"to_account_id": a["id"]}, expected=422)  # same account
+    patch(client, moved["id"], {"to_account_id": usd["id"]}, expected=422)  # other currency
+    patch(client, moved["id"], {"to_account_id": 999}, expected=422)
+    patch(client, moved["id"], {"reason": "  x "}, expected=422)
+    patch(client, moved["id"], {"amount": "0"}, expected=422)
+    patch(client, moved["id"], {"amount": None}, expected=422)
+    patch(client, deposit["id"], {"from_account_id": b["id"]}, expected=422)  # no source
+    patch(client, 999, {"amount": "1"}, expected=404)
+
+    # Both sides of a transfer may move to another currency together.
+    usd2 = account(client, "Wise 2", currency="USD")
+    edited = patch(client, moved["id"], {"from_account_id": usd["id"], "to_account_id": usd2["id"]})
+    assert edited["currency"] == "USD"

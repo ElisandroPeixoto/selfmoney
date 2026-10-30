@@ -210,17 +210,20 @@ class BudgetTemplateRead(BaseModel):
     items: list[BudgetTemplateItemRead]
 
 
+def _require_reason(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = value.strip()
+    if len(value) < 3:
+        raise ValueError("A justification of at least 3 characters is required")
+    return value
+
+
 class _MovementBase(BaseModel):
     amount: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
     reason: str = Field(max_length=500)
 
-    @field_validator("reason")
-    @classmethod
-    def require_reason(cls, value: str) -> str:
-        value = value.strip()
-        if len(value) < 3:
-            raise ValueError("A justification of at least 3 characters is required")
-        return value
+    _require_reason = field_validator("reason")(_require_reason)
 
 
 class DepositCreate(_MovementBase):
@@ -240,6 +243,20 @@ class TransferCreate(_MovementBase):
         if self.from_account_id == self.to_account_id:
             raise ValueError("Source and destination accounts must differ")
         return self
+
+
+class MovementUpdate(BaseModel):
+    """Partial update; the kind can't change.
+
+    Deposits have no source account and withdrawals no destination.
+    """
+
+    amount: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=2)
+    reason: str | None = Field(default=None, max_length=500)
+    from_account_id: int | None = None
+    to_account_id: int | None = None
+
+    _require_reason = field_validator("reason")(_require_reason)
 
 
 class MovementRead(BaseModel):

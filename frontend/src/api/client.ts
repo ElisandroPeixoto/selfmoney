@@ -23,6 +23,7 @@ export type BudgetItemUpdate = Schemas["BudgetItemUpdate"];
 export type BudgetTemplate = Schemas["BudgetTemplateRead"];
 export type Movement = Schemas["MovementRead"];
 export type MovementKind = Schemas["MovementKind"];
+export type MovementUpdate = Schemas["MovementUpdate"];
 export type CategorySpending = Schemas["CategorySpending"];
 export type Currency = Schemas["Currency"];
 export type Bank = Schemas["Bank"];
@@ -303,6 +304,20 @@ export function fetchMovements(filter: MovementFilter, signal?: AbortSignal): Pr
   if (filter.from) params.set("created_from", localDayStart(filter.from));
   if (filter.to) params.set("created_before", localDayStart(filter.to, 1));
   return request<Movement[]>(`/movements?${params}`, { signal });
+}
+
+export function updateMovement(
+  id: number,
+  changes: MovementUpdate,
+): Promise<Movement> {
+  return request<Movement>(`/movements/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(changes),
+  });
+}
+
+export function deleteMovement(id: number): Promise<void> {
+  return request<void>(`/movements/${id}`, { method: "DELETE" });
 }
 
 export function depositMoney(payload: Schemas["DepositCreate"]): Promise<Movement> {

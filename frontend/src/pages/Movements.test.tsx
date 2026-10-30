@@ -236,4 +236,136 @@ describe("Movements page", () => {
     );
     expect(spy.mock.calls.some(([u]) => String(u).includes("/movements"))).toBe(false);
   });
+
+  it("deletes a movement after confirmation and reloads balances and log", async () => {
+    let current = log;
+    const spy = setup({
+      "GET /api/movements": () => ({ body: current }),
+      "DELETE /api/movements/2": () => {
+        current = log.filter((m) => m.id !== 2);
+        return { status: 204 };
+      },
+    });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderApp("/movimentacoes");
+
+    const table = await screen.findByRole("table", { name: "Histórico de movimentações" });
+    await userEvent.click(
+      within(table).getByRole("button", { name: "Excluir retirada: Saque para a feira" }),
+    );
+
+    expect(confirm.mock.calls[0][0]).toMatch(
+      /Excluir a retirada de R\$\s30,00 \(Saque para a feira\)/,
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Retirada de R$ 30,00 excluída do histórico.",
+    );
+    expect(screen.queryByText("Saque para a feira")).not.toBeInTheDocument();
+    const accountLoads = spy.mock.calls.filter(([u]) => String(u).endsWith("/api/accounts"));
+    expect(accountLoads.length).toBe(2);
+  });
+
+  it("keeps the movement when the deletion is not confirmed", async () => {
+    const spy = setup();
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    renderApp("/movimentacoes");
+
+    const table = await screen.findByRole("table", { name: "Histórico de movimentações" });
+    await userEvent.click(
+      within(table).getByRole("button", { name: "Excluir transferência: Fechando a conta antiga" }),
+    );
+    expect(spy.mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(false);
+    expect(within(table).getByText("Fechando a conta antiga")).toBeInTheDocument();
+  });
+
+  it("tells when a movement can't be deleted", async () => {
+    setup({ "DELETE /api/movements/2": () => ({ status: 500 }) });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderApp("/movimentacoes");
+
+    const table = await screen.findByRole("table", { name: "Histórico de movimentações" });
+    await userEvent.click(
+      within(table).getByRole("button", { name: "Excluir retirada: Saque para a feira" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Não foi possível excluir a movimentação.",
+    );
+    expect(within(table).getByText("Saque para a feira")).toBeInTheDocument();
+  });
+
+  function patchBody(spy: ReturnType<typeof setup>): unknown {
+    const call = spy.mock.calls.find(([, init]) => init?.method === "PATCH");
+    return call ? JSON.parse(String(call[1]?.body)) : undefined;
+  }
+
+  it("edits the amount and justification of a movement", async () => {
+    const spy = setup({
+      "PATCH /api/movements/2": (init) => ({
+        body: { ...log[0], ...JSON.parse(String(init?.body)) },
+      }),
+    });
+    renderApp("/movimentacoes");
+
+    const table = await screen.findByRole("table", { name: "Histórico de movimentações" });
+    await userEvent.click(
+      within(table).getByRole("button", { name: "Editar retirada: Saque para a feira" }),
+    );
+    const form = screen.getByRole("form", { name: "Editar retirada" });
+    const save = within(form).getByRole("button", { name: "Salvar alterações" });
+    expect(save).toBeDisabled();
+    // A withdrawal only has the account the money left.
+    expect(within(form).getByLabelText("Conta")).toHaveValue("1");
+    expect(within(form).queryByLabelText("Para")).not.toBeInTheDocument();
+
+    const amount = within(form).getByLabelText("Valor");
+    await userEvent.clear(amount);
+    await userEvent.type(amount, "4500");
+    const reason = within(form).getByLabelText(/justificativa/i);
+    await userEvent.clear(reason);
+    await userEvent.type(reason, "Saque maior");
+    await userEvent.click(save);
+
+    expect(patchBody(spy)).toEqual({ amount: "45.00", reason: "Saque maior" });
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Retirada atualizada no histórico.",
+    );
+    expect(screen.queryByRole("form", { name: "Editar retirada" })).not.toBeInTheDocument();
+  });
+
+  it("changes the destination of a transfer whose source was deleted", async () => {
+    const spy = setup({
+      "PATCH /api/movements/1": () => ({ body: { ...log[1], to_account_id: 1 } }),
+    });
+    renderApp("/movimentacoes");
+
+    const table = await screen.findByRole("table", { name: "Histórico de movimentações" });
+    await userEvent.click(
+      within(table).getByRole("button", {
+        name: "Editar transferência: Fechando a conta antiga",
+      }),
+    );
+    const form = screen.getByRole("form", { name: "Editar transferência" });
+    expect(within(form).getByLabelText("De")).toHaveDisplayValue("Conta antiga (excluída)");
+    // Only accounts in the transfer's currency can receive it.
+    const to = within(form).getByLabelText("Para");
+    expect(within(to).queryByRole("option", { name: "Wise" })).not.toBeInTheDocument();
+
+    await userEvent.selectOptions(to, "1");
+    await userEvent.click(within(form).getByRole("button", { name: "Salvar alterações" }));
+    expect(patchBody(spy)).toEqual({ to_account_id: 1 });
+  });
+
+  it("closes the editor without saving on cancel", async () => {
+    const spy = setup();
+    renderApp("/movimentacoes");
+
+    const table = await screen.findByRole("table", { name: "Histórico de movimentações" });
+    await userEvent.click(
+      within(table).getByRole("button", { name: "Editar retirada: Saque para a feira" }),
+    );
+    const form = screen.getByRole("form", { name: "Editar retirada" });
+    await userEvent.click(within(form).getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("form", { name: "Editar retirada" })).not.toBeInTheDocument();
+    expect(spy.mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(false);
+  });
 });

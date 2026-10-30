@@ -1464,3 +1464,15 @@ a.button {
 .installment-status.done {
   color: var(--positive);
 }
+
+.movement-editor {
+  margin: 4px 0 20px;
+  padding: 16px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+}
+
+.movement-editor-title {
+  margin: 0 0 12px;
+  font-size: 1rem;
+}

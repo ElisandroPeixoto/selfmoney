@@ -29,8 +29,10 @@ Sistema de gestão financeira pessoal.
   (ou copiada direto de outro orçamento)
 - **Movimentações:** transferir dinheiro entre contas (da mesma moeda), adicionar ou retirar dinheiro
   de uma conta sem vincular a um mês. Toda movimentação exige uma **justificativa** e fica
-  registrada num **histórico** (log) filtrável por conta, tipo e período (data inicial/final). O histórico não pode ser editado
-  nem apagado, e continua legível mesmo se a conta for excluída
+  registrada num **histórico** (log) filtrável por conta, tipo e período (data inicial/final). Uma movimentação pode ser
+  **editada** (valor, justificativa e contas; o tipo e a data/hora ficam) ou **excluída** (com
+  confirmação, o que desfaz o efeito dela nos saldos). O
+  histórico continua legível mesmo se a conta for excluída
 - **Cartão de Crédito:** cartões vinculados a uma conta, compras à vista ou parceladas (até 48x,
   com categoria), faturas mês a mês (gráfico dos próximos 12 meses e detalhe de cada fatura) e
   exportação das parcelas para Lançamentos como despesas da conta vinculada, com a categoria da
@@ -117,6 +119,8 @@ API em http://localhost:8000 — documentação interativa em http://localhost:8
 | POST | `/api/movements/transfer` | Transferir entre contas (`from_account_id`, `to_account_id`, `amount`, `reason`) |
 | POST | `/api/movements/deposit` | Adicionar dinheiro a uma conta (`account_id`, `amount`, `reason`) |
 | POST | `/api/movements/withdrawal` | Retirar dinheiro de uma conta (`account_id`, `amount`, `reason`) |
+| PATCH | `/api/movements/{id}` | Editar valor, justificativa e contas (`from_account_id`/`to_account_id`, conforme o tipo) |
+| DELETE | `/api/movements/{id}` | Excluir uma movimentação (os saldos voltam a ficar como sem ela) |
 | GET/POST | `/api/cards` | Listar (com o total ainda não exportado) / criar cartões (`name`, `account_id`, `currency`, `due_day`, `auto_export`) |
 | PATCH/DELETE | `/api/cards/{id}` | Editar / excluir cartão e suas compras (despesas já exportadas ficam em Lançamentos) |
 | GET/POST | `/api/cards/{id}/purchases` | Listar / adicionar compra (`description`, `amount` total, `installments`, `date`, `category_id`; opcional `first_year`/`first_month`, padrão: mês seguinte à compra) |

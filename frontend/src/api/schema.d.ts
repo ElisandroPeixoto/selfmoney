@@ -351,7 +351,7 @@ export interface paths {
         };
         /**
          * List Movements
-         * @description The movements log, newest first. There is no edit or delete: it is append-only.
+         * @description The movements log, newest first.
          *
          *     `created_from` (inclusive) and `created_before` (exclusive) must carry a timezone, so the
          *     client can ask for its own local days.
@@ -414,6 +414,30 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/movements/{movement_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Movement
+         * @description Remove a movement; the balances it changed go back to what they were without it.
+         */
+        delete: operations["delete_movement_api_movements__movement_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Movement
+         * @description Change amount, justification or accounts; the kind and the time stay as recorded.
+         */
+        patch: operations["update_movement_api_movements__movement_id__patch"];
         trace?: never;
     };
     "/api/cards": {
@@ -930,6 +954,22 @@ export interface components {
             to_account_name: string | null;
             /** Created At */
             created_at: string;
+        };
+        /**
+         * MovementUpdate
+         * @description Partial update; the kind can't change.
+         *
+         *     Deposits have no source account and withdrawals no destination.
+         */
+        MovementUpdate: {
+            /** Amount */
+            amount?: number | string | null;
+            /** Reason */
+            reason?: string | null;
+            /** From Account Id */
+            from_account_id?: number | null;
+            /** To Account Id */
+            to_account_id?: number | null;
         };
         /** TransactionCreate */
         TransactionCreate: {
@@ -2006,6 +2046,70 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MovementRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_movement_api_movements__movement_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                movement_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_movement_api_movements__movement_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                movement_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MovementUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
