@@ -78,11 +78,11 @@ def test_login_gives_a_token_that_opens_the_api(locked: TestClient) -> None:
 def test_tokens_expire_and_die_with_a_password_change() -> None:
     now = datetime(2026, 1, 1, tzinfo=UTC)
     token, expires_at = create_token(settings(), now)
-    assert expires_at == now + timedelta(days=30)
+    assert expires_at == now + timedelta(hours=24)
 
-    verify_token(settings(), token, now + timedelta(days=29))
+    verify_token(settings(), token, now + timedelta(hours=23))
     with pytest.raises(InvalidTokenError):
-        verify_token(settings(), token, now + timedelta(days=31))
+        verify_token(settings(), token, now + timedelta(hours=25))
     with pytest.raises(InvalidTokenError):
         verify_token(settings(app_password="a new password"), token, now)
     with pytest.raises(InvalidTokenError):

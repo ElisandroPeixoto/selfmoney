@@ -28,7 +28,7 @@ def password_matches(settings: Settings, password: str) -> bool:
 
 
 def create_token(settings: Settings, now: datetime | None = None) -> tuple[str, datetime]:
-    expires_at = (now or datetime.now(UTC)) + timedelta(days=settings.session_days)
+    expires_at = (now or datetime.now(UTC)) + timedelta(hours=settings.session_hours)
     payload = str(int(expires_at.timestamp()))
     return f"{payload}.{_sign(settings, payload)}", expires_at
 

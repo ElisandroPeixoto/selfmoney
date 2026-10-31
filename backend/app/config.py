@@ -20,7 +20,8 @@ class Settings(BaseSettings):
     # Empty password = no login (development). Production refuses to start without one.
     app_password: str = ""
     secret_key: str = ""
-    session_days: int = 30
+    # How long a login token stays valid.
+    session_hours: int = 24
 
     @field_validator("database_url")
     @classmethod

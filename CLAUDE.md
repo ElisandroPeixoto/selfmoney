@@ -167,7 +167,7 @@ Rotas do frontend: `/` Dashboard, `/lancamentos`, `/orcamentos` e `/orcamentos/:
 
 - Uma senha só, em `APP_PASSWORD`; sem ela (dev) não há login. `APP_ENV=production` exige
   `APP_PASSWORD` e `SECRET_KEY`, senão `Settings` falha e a API não inicia.
-- `POST /api/auth/login` devolve um token assinado (30 dias, `SESSION_DAYS`); o frontend o envia como
+- `POST /api/auth/login` devolve um token assinado (24 horas, `SESSION_HOURS`); o frontend o envia como
   `Authorization: Bearer` em toda chamada (`api/client.ts`). Um 401 limpa o token e volta ao login.
 - **Novo router protegido:** registrar em `protected` em `main.py`. Só `/api/health` e `/api/auth/*`
   ficam abertos.
