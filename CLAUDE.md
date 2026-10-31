@@ -65,7 +65,7 @@ backend/app/
                    auth (status/login; `require_auth` protege todos os outros routers em main.py)
   auth.py          tokens de sessão (HMAC, expiram; chave = SECRET_KEY + APP_PASSWORD)
   seed.py          dados de exemplo
-backend/alembic/versions/   0001…0007 (numeração sequencial manual via --rev-id)
+backend/alembic/versions/   0001…0011 (numeração sequencial manual via --rev-id)
 backend/tests/              conftest (SQLite em memória + override de get_db), um arquivo por área
 
 frontend/src/
@@ -73,7 +73,7 @@ frontend/src/
   api/schema.d.ts  GERADO — não editar à mão
   pages/           Dashboard, Transactions (Lançamentos), Budgets (Orçamentos), Movements, Accounts,
                    Categories, Reports (Relatórios), CreditCards (Cartão de Crédito)
-  components/      Sidebar, ThemeToggle, AccountsCard, SpendingChart, IncomeExpenseChart, BudgetChart, BudgetDetail,
+  components/      CardPurchaseList (compras: marcar, enviar, editar, excluir), Sidebar, ThemeToggle, AccountsCard, SpendingChart, IncomeExpenseChart, BudgetChart, BudgetDetail,
                    BudgetProgress, TransactionForm, MovementForm, MovementEditor, CardForm, CardPurchaseForm, CardBills, MoneyInput, IconPicker, BankLogo, CategoryLabel, icons
   lib/format.ts    formatação pt-BR: moeda, %, mês, data, datas ISO
   lib/budgets.ts   budgetFor: orçamento de um mês/moeda (formulário e lista de Lançamentos)
@@ -142,9 +142,13 @@ Rotas do frontend: `/` Dashboard, `/lancamentos`, `/orcamentos` e `/orcamentos/:
   vinculada. Exportar cria uma despesa por parcela na conta vinculada, com a categoria da compra (se
   ainda for de despesa), datada no dia do vencimento (ou da compra) dentro do mês da fatura, e marca
   `transactions.card_purchase_id` + `card_installment` (únicos juntos): cada parcela é exportada uma
-  vez; excluir a despesa a deixa pendente de novo. `auto_export` exporta todas as parcelas ao criar a
-  compra e exige conta. Excluir compra/cartão mantém as despesas exportadas (só desvincula); excluir a
-  conta desvincula o cartão e desliga `auto_export`. Categoria usada em compra não pode virar receita (409).
+  vez; excluir a despesa a deixa pendente de novo. Não há exportação automática: o envio é sempre manual, por
+  fatura (`POST /bills/{y}/{m}/export`) ou por compra (`POST /purchases/export` com `purchase_ids`, que lança
+  todas as parcelas pendentes das compras marcadas; exige conta, 409 sem ela). Editar compra
+  (`PATCH /purchases/{id}`, `CardPurchaseForm` com a prop `purchase`) revalida a categoria (despesa); com
+  parcelas já exportadas, valor/parcelas/datas ficam travados (409) e descrição/categoria só valem para as
+  próximas parcelas lançadas. Excluir compra/cartão mantém as despesas exportadas (só desvincula); excluir a
+  conta desvincula o cartão. Categoria usada em compra não pode virar receita (409).
 - **Balanços** (`BalanceCheck`): só um carimbo `created_at` (UTC) gravado ao apertar o botão na página
   Balanços; lista com exclusão (`window.confirm`).
 - **Coleções** (`SpendingCollection`, `CollectionItem`): grupo nomeado (nome único) com moeda e

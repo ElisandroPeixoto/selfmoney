@@ -501,7 +501,6 @@ def card_read(db: Session, card: CreditCard) -> CreditCardRead:
         account_name=card.account.name if card.account else None,
         currency=card.currency,
         due_day=card.due_day,
-        auto_export=card.auto_export,
         pending_total=_money(pending),
     )
 
@@ -513,7 +512,7 @@ def purchase_reads(db: Session, purchases: list[CardPurchase]) -> list[CardPurch
             id=p.id,
             card_id=p.card_id,
             description=p.description,
-            amount=p.amount,
+            amount=_money(p.amount),
             installments=p.installments,
             installment_amount=installment_amounts(p.amount, p.installments)[-1],
             date=p.date,
@@ -560,17 +559,17 @@ def export_card_installments(
     db: Session,
     card: CreditCard,
     bill: tuple[int, int] | None = None,
-    purchase_id: int | None = None,
+    purchase_ids: list[int] | None = None,
 ) -> int:
-    """Create an expense for each pending installment (of one bill, or of one purchase).
+    """Create an expense for each pending installment (of one bill, or of some purchases).
 
     Already exported installments are skipped. Doesn't commit.
     """
     if card.account_id is None:
         raise CardExportError("Link the card to an account before exporting")
     purchases = {p.id: p for p in _card_purchases(db, card.id)}
-    if purchase_id is not None:
-        purchases = {purchase_id: purchases[purchase_id]}
+    if purchase_ids is not None:
+        purchases = {pid: purchases[pid] for pid in purchase_ids if pid in purchases}
     created = 0
     for (year, month), installment in _installments(db, list(purchases.values())):
         if installment.transaction_id is not None or (bill and (year, month) != bill):

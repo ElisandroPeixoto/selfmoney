@@ -1614,3 +1614,18 @@ a.button {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Card purchases */
+.purchase-editor {
+  margin: 12px 0 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.data-table input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}

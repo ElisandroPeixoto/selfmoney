@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 
 import {
   createCardPurchase,
+  updateCardPurchase,
   type CardPurchase,
   type Category,
   type CreditCard,
@@ -13,7 +14,10 @@ import MoneyInput from "./MoneyInput";
 interface Props {
   card: CreditCard;
   categories: Category[];
-  onCreated: (purchase: CardPurchase) => void;
+  /** When given, the form edits this purchase instead of adding a new one. */
+  purchase?: CardPurchase;
+  onSaved: (purchase: CardPurchase) => void;
+  onCancel?: () => void;
 }
 
 function today(): string {
@@ -23,17 +27,23 @@ function today(): string {
 
 const MAX_INSTALLMENTS = 48;
 
-export default function CardPurchaseForm({ card, categories, onCreated }: Props) {
-  const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
-  const [installments, setInstallments] = useState("1");
-  const [date, setDate] = useState(today);
+export default function CardPurchaseForm({ card, categories, purchase, onSaved, onCancel }: Props) {
+  const editing = purchase !== undefined;
+  const [description, setDescription] = useState(purchase?.description ?? "");
+  const [amount, setAmount] = useState(purchase?.amount ?? "");
+  const [installments, setInstallments] = useState(String(purchase?.installments ?? 1));
+  const [date, setDate] = useState(purchase?.date ?? today());
   // Follows the purchase date until the user picks a bill.
-  const [firstBill, setFirstBill] = useState<string | null>(null);
-  const [categoryId, setCategoryId] = useState<number | null>(null);
+  const [firstBill, setFirstBill] = useState<string | null>(
+    purchase ? toMonthValue({ year: purchase.first_year, month: purchase.first_month }) : null,
+  );
+  const [categoryId, setCategoryId] = useState<number | null>(purchase?.category_id ?? null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Exported expenses keep their amount and dates, so those fields stay fixed.
+  const locked = editing && purchase.exported_installments > 0;
+  const prefix = editing ? `purchase-${purchase.id}` : "purchase";
   const count = Number(installments);
   const validCount = Number.isInteger(count) && count >= 1 && count <= MAX_INSTALLMENTS;
   const firstBillValue = firstBill ?? (date ? toMonthValue(defaultFirstBill(date)) : "");
@@ -46,23 +56,30 @@ export default function CardPurchaseForm({ card, categories, onCreated }: Props)
     if (!canSave || !bill) return;
     setSaving(true);
     setError(null);
+    const payload = {
+      description: description.trim(),
+      amount,
+      installments: count,
+      date,
+      first_year: bill.year,
+      first_month: bill.month,
+      category_id: categoryId,
+    };
     try {
-      const created = await createCardPurchase(card.id, {
-        description: description.trim(),
-        amount,
-        installments: count,
-        date,
-        first_year: bill.year,
-        first_month: bill.month,
-        category_id: categoryId,
-      });
-      onCreated(created);
-      setDescription("");
-      setAmount("");
-      setInstallments("1");
-      setFirstBill(null);
+      const saved = editing
+        ? await updateCardPurchase(card.id, purchase.id, payload)
+        : await createCardPurchase(card.id, payload);
+      onSaved(saved);
+      if (!editing) {
+        setDescription("");
+        setAmount("");
+        setInstallments("1");
+        setFirstBill(null);
+      }
     } catch {
-      setError("Não foi possível adicionar a compra.");
+      setError(
+        editing ? "Não foi possível salvar a compra." : "Não foi possível adicionar a compra.",
+      );
     } finally {
       setSaving(false);
     }
@@ -79,12 +96,15 @@ export default function CardPurchaseForm({ card, categories, onCreated }: Props)
   }
 
   return (
-    <form onSubmit={handleSubmit} aria-label="Nova compra">
+    <form
+      onSubmit={handleSubmit}
+      aria-label={editing ? `Editar compra ${purchase.description}` : "Nova compra"}
+    >
       <div className="form-grid">
-        <label className="field" htmlFor="purchase-description">
+        <label className="field" htmlFor={`${prefix}-description`}>
           <span>Descrição</span>
           <input
-            id="purchase-description"
+            id={`${prefix}-description`}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             maxLength={150}
@@ -92,52 +112,56 @@ export default function CardPurchaseForm({ card, categories, onCreated }: Props)
             required
           />
         </label>
-        <label className="field" htmlFor="purchase-amount">
+        <label className="field" htmlFor={`${prefix}-amount`}>
           <span>Valor total</span>
           <MoneyInput
-            id="purchase-amount"
+            id={`${prefix}-amount`}
             value={amount}
             onChange={setAmount}
             currency={card.currency}
+            disabled={locked}
           />
         </label>
-        <label className="field" htmlFor="purchase-installments">
+        <label className="field" htmlFor={`${prefix}-installments`}>
           <span>Parcelas</span>
           <input
-            id="purchase-installments"
+            id={`${prefix}-installments`}
             type="number"
             inputMode="numeric"
             min={1}
             max={MAX_INSTALLMENTS}
             value={installments}
             onChange={(e) => setInstallments(e.target.value)}
+            disabled={locked}
             required
           />
         </label>
-        <label className="field" htmlFor="purchase-date">
+        <label className="field" htmlFor={`${prefix}-date`}>
           <span>Data da compra</span>
           <input
-            id="purchase-date"
+            id={`${prefix}-date`}
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
+            disabled={locked}
             required
           />
         </label>
-        <label className="field" htmlFor="purchase-first-bill">
+        <label className="field" htmlFor={`${prefix}-first-bill`}>
           <span>1ª parcela na fatura de</span>
           <input
-            id="purchase-first-bill"
+            id={`${prefix}-first-bill`}
             type="month"
             value={firstBillValue}
             onChange={(e) => setFirstBill(e.target.value)}
+            disabled={locked}
             required
           />
         </label>
-        <label className="field" htmlFor="purchase-category">
+        <label className="field" htmlFor={`${prefix}-category`}>
           <span>Categoria</span>
           <select
-            id="purchase-category"
+            id={`${prefix}-category`}
             value={categoryId ?? ""}
             onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : null)}
           >
@@ -152,10 +176,10 @@ export default function CardPurchaseForm({ card, categories, onCreated }: Props)
         </label>
       </div>
 
-      {card.auto_export && card.account_name && (
+      {locked && (
         <p className="hint">
-          Exportação automática ligada: as parcelas vão direto para Lançamentos, na conta{" "}
-          {card.account_name}.
+          Esta compra já tem parcelas em Lançamentos, então valor, parcelas e datas não podem
+          mudar. Descrição e categoria valem só para as próximas parcelas lançadas.
         </p>
       )}
 
@@ -170,8 +194,13 @@ export default function CardPurchaseForm({ card, categories, onCreated }: Props)
             {error}
           </span>
         )}
+        {onCancel && (
+          <button type="button" className="button" onClick={onCancel}>
+            Cancelar
+          </button>
+        )}
         <button type="submit" className="button primary" disabled={saving || !canSave}>
-          Adicionar compra
+          {editing ? "Salvar compra" : "Adicionar compra"}
         </button>
       </div>
     </form>

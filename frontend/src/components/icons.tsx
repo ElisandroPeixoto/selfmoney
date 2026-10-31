@@ -120,6 +120,14 @@ export const LogoutIcon = () => (
   </Icon>
 );
 
+export const SendIcon = () => (
+  <Icon>
+    <path d="M12 19V5" />
+    <path d="m5 12 7-7 7 7" />
+    <path d="M5 21h14" />
+  </Icon>
+);
+
 export const EditIcon = () => (
   <Icon>
     <path d="M12 20h9" />

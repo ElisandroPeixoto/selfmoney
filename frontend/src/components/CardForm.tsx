@@ -18,7 +18,7 @@ interface Props {
   onCancel?: () => void;
 }
 
-/** Name, linked account, due day and export mode of a credit card. */
+/** Name, linked account and due day of a credit card. */
 export default function CardForm({ accounts, card, onSaved, onCancel }: Props) {
   const editing = card !== undefined;
   const [name, setName] = useState(card?.name ?? "");
@@ -27,7 +27,6 @@ export default function CardForm({ accounts, card, onSaved, onCancel }: Props) {
   );
   const [currency, setCurrency] = useState<Currency>(card?.currency ?? "BRL");
   const [dueDay, setDueDay] = useState(card?.due_day ? String(card.due_day) : "");
-  const [autoExport, setAutoExport] = useState(card?.auto_export ?? false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,8 +44,6 @@ export default function CardForm({ accounts, card, onSaved, onCancel }: Props) {
       account_id: accountId,
       currency: account?.currency ?? currency,
       due_day: dueDay ? Number(dueDay) : null,
-      // Exporting needs an account to put the expenses in.
-      auto_export: accountId !== null && autoExport,
     };
     try {
       const saved = editing ? await updateCard(card.id, payload) : await createCard(payload);
@@ -54,7 +51,6 @@ export default function CardForm({ accounts, card, onSaved, onCancel }: Props) {
       if (!editing) {
         setName("");
         setDueDay("");
-        setAutoExport(false);
       }
     } catch (err) {
       setError(
@@ -130,24 +126,6 @@ export default function CardForm({ accounts, card, onSaved, onCancel }: Props) {
           />
         </label>
       </div>
-
-      <label className="checkbox-field" htmlFor={`${prefix}-auto`}>
-        <input
-          id={`${prefix}-auto`}
-          type="checkbox"
-          checked={accountId !== null && autoExport}
-          disabled={accountId === null}
-          onChange={(e) => setAutoExport(e.target.checked)}
-        />
-        <span>
-          Exportar automaticamente para Lançamentos
-          <small className="muted">
-            {accountId === null
-              ? "Vincule uma conta para exportar as compras."
-              : `Cada compra nova já lança todas as parcelas em ${account?.name}, uma por mês.`}
-          </small>
-        </span>
-      </label>
 
       <div className="form-actions">
         {error && (

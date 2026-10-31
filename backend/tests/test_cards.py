@@ -23,6 +23,11 @@ def purchase(client: TestClient, card_id: int, expected: int = 201, **extra: obj
     return post(client, f"/api/cards/{card_id}/purchases", payload, expected)
 
 
+def export(client: TestClient, card_id: int, *purchase_ids: int, expected: int = 200) -> dict:
+    payload = {"purchase_ids": list(purchase_ids)}
+    return post(client, f"/api/cards/{card_id}/purchases/export", payload, expected)
+
+
 def bills(client: TestClient, card_id: int, year: int, month: int, months: int = 12) -> list:
     params = {"year": year, "month": month, "months": months}
     response = client.get(f"/api/cards/{card_id}/bills", params=params)
@@ -51,7 +56,6 @@ def test_card_takes_the_account_currency(client: TestClient) -> None:
 
     post(client, "/api/cards", {"name": "Visa"}, expected=409)
     post(client, "/api/cards", {"name": "X", "account_id": 999}, expected=422)
-    post(client, "/api/cards", {"name": "Y", "auto_export": True}, expected=422)
     post(client, "/api/cards", {"name": "Z", "due_day": 32}, expected=422)
 
 
@@ -126,10 +130,16 @@ def test_export_needs_an_account(client: TestClient) -> None:
     post(client, f"/api/cards/{card['id']}/bills/2026/13/export", {}, expected=422)
 
 
-def test_auto_export_adds_every_installment(client: TestClient) -> None:
-    ids = setup(client, auto_export=True)
+def test_export_purchases_adds_every_pending_installment(client: TestClient) -> None:
+    ids = setup(client)
     card_id = ids["card"]["id"]
-    purchase(client, card_id, installments=3, date="2026-10-31")
+    sofa = purchase(client, card_id, installments=3, date="2026-10-31")
+    mesa = purchase(client, card_id, description="Mesa", date="2026-10-05")
+    assert client.get("/api/cards").json()[0]["pending_total"] == "2000.00"
+
+    result = export(client, card_id, sofa["id"])
+    assert result["created"] == 3
+    assert [(p["id"], p["exported_installments"]) for p in result["purchases"]] == [(sofa["id"], 3)]
 
     rows = client.get("/api/transactions", params={"year": 2027}).json()
     rows += client.get("/api/transactions", params={"year": 2026}).json()
@@ -139,9 +149,109 @@ def test_auto_export_adds_every_installment(client: TestClient) -> None:
         ("2026-12-31", "Sofá (2/3)"),
         ("2027-01-31", "Sofá (3/3)"),
     ]
+    assert client.get("/api/cards").json()[0]["pending_total"] == "1000.00"
+    assert client.get("/api/accounts").json()[0]["balance"] == "0.00"
+
+    # Sending again only exports what is still pending.
+    assert export(client, card_id, sofa["id"], mesa["id"])["created"] == 1
     assert client.get("/api/cards").json()[0]["pending_total"] == "0.00"
-    accounts = client.get("/api/accounts").json()
-    assert accounts[0]["balance"] == "0.00"
+
+
+def test_export_purchases_validates(client: TestClient) -> None:
+    ids = setup(client)
+    card_id = ids["card"]["id"]
+    other = post(client, "/api/cards", {"name": "Outro", "account_id": ids["account"]["id"]})
+    foreign = purchase(client, other["id"])
+    mine = purchase(client, card_id)
+
+    export(client, card_id, mine["id"], foreign["id"], expected=422)
+    export(client, card_id, 999, expected=422)
+    post(client, f"/api/cards/{card_id}/purchases/export", {"purchase_ids": []}, expected=422)
+    export(client, 999, mine["id"], expected=404)
+    assert client.get("/api/transactions", params={"year": 2026}).json() == []
+
+    loose = post(client, "/api/cards", {"name": "Solto"})
+    unlinked = purchase(client, loose["id"])
+    export(client, loose["id"], unlinked["id"], expected=409)
+
+
+def test_update_purchase(client: TestClient) -> None:
+    ids = setup(client)
+    card_id = ids["card"]["id"]
+    sofa = purchase(client, card_id, installments=2)
+    url = f"/api/cards/{card_id}/purchases/{sofa['id']}"
+
+    updated = client.patch(
+        url,
+        json={
+            "description": "Sofá novo",
+            "amount": "1200",
+            "installments": 4,
+            "date": "2026-10-25",
+            "first_year": 2026,
+            "first_month": 12,
+            "category_id": ids["category"]["id"],
+        },
+    ).json()
+    assert (updated["description"], updated["amount"], updated["installments"]) == (
+        "Sofá novo",
+        "1200.00",
+        4,
+    )
+    assert (updated["first_year"], updated["first_month"]) == (2026, 12)
+    assert updated["category_id"] == ids["category"]["id"]
+    assert updated["installment_amount"] == "300.00"
+    assert [b["total"] for b in bills(client, card_id, 2026, 11, 3)] == ["0.00", "300.00", "300.00"]
+
+    cleared = client.patch(url, json={"category_id": None}).json()
+    assert cleared["category_id"] is None
+
+    income = post(client, "/api/categories", {"name": "Salário", "kind": "income"})
+    assert client.patch(url, json={"category_id": income["id"]}).status_code == 422
+    assert client.patch(url, json={"category_id": 999}).status_code == 422
+    for body in (
+        {"description": None},
+        {"amount": None},
+        {"amount": "0"},
+        {"installments": 0},
+        {"first_year": 2026},
+        {"first_year": None, "first_month": None},
+    ):
+        assert client.patch(url, json=body).status_code == 422, body
+    assert (
+        client.patch(f"/api/cards/{card_id}/purchases/999", json={"description": "x"}).status_code
+        == 404
+    )
+    assert (
+        client.patch(
+            f"/api/cards/999/purchases/{sofa['id']}", json={"description": "x"}
+        ).status_code
+        == 404
+    )
+
+
+def test_exported_purchase_keeps_its_amounts(client: TestClient) -> None:
+    ids = setup(client)
+    card_id = ids["card"]["id"]
+    sofa = purchase(client, card_id, installments=2)
+    url = f"/api/cards/{card_id}/purchases/{sofa['id']}"
+    export(client, card_id, sofa["id"])
+
+    for body in (
+        {"amount": "500"},
+        {"installments": 3},
+        {"date": "2026-10-21"},
+        {"first_month": 5, "first_year": 2027},
+    ):
+        assert client.patch(url, json=body).status_code == 409, body
+    # Unchanged values and the label fields are still editable.
+    same = {"amount": "1000", "installments": 2, "date": "2026-10-20"}
+    assert client.patch(url, json=same).status_code == 200
+    renamed = client.patch(
+        url, json={"description": "Sofá cama", "category_id": ids["category"]["id"]}
+    )
+    assert renamed.json()["description"] == "Sofá cama"
+    assert renamed.json()["category_id"] == ids["category"]["id"]
 
 
 def test_update_card(client: TestClient) -> None:
@@ -153,18 +263,16 @@ def test_update_card(client: TestClient) -> None:
     assert response.json()["currency"] == "USD"
     response = client.patch(f"/api/cards/{card_id}", json={"account_id": None})
     assert (response.json()["account_id"], response.json()["currency"]) == (None, "USD")
-    response = client.patch(f"/api/cards/{card_id}", json={"auto_export": True})
-    assert response.status_code == 422
     response = client.patch(f"/api/cards/{card_id}", json={"name": None})
     assert response.status_code == 422
-    assert client.get("/api/cards").json()[0]["auto_export"] is False
 
 
 def test_deleting_keeps_exported_transactions(client: TestClient) -> None:
-    ids = setup(client, auto_export=True)
+    ids = setup(client)
     card_id = ids["card"]["id"]
     sofa = purchase(client, card_id, installments=2)
-    purchase(client, card_id, description="Mesa")
+    mesa = purchase(client, card_id, description="Mesa")
+    export(client, card_id, sofa["id"], mesa["id"])
 
     response = client.delete(f"/api/cards/{card_id}/purchases/{sofa['id']}")
     assert response.status_code == 204
@@ -178,9 +286,10 @@ def test_deleting_keeps_exported_transactions(client: TestClient) -> None:
 
 
 def test_deleting_the_account_or_category_unlinks_the_card(client: TestClient) -> None:
-    ids = setup(client, auto_export=True)
+    ids = setup(client)
     card_id = ids["card"]["id"]
-    purchase(client, card_id, category_id=ids["category"]["id"])
+    bought = purchase(client, card_id, category_id=ids["category"]["id"])
+    export(client, card_id, bought["id"])
 
     # Card purchases are expenses, so their category can't turn into an income one.
     response = client.patch(f"/api/categories/{ids['category']['id']}", json={"kind": "income"})
@@ -191,6 +300,6 @@ def test_deleting_the_account_or_category_unlinks_the_card(client: TestClient) -
 
     client.delete(f"/api/accounts/{ids['account']['id']}")
     card = client.get("/api/cards").json()[0]
-    assert (card["account_id"], card["auto_export"]) == (None, False)
+    assert card["account_id"] is None
     # Its exported expenses went with the account, so the installment is pending again.
     assert card["pending_total"] == "1000.00"

@@ -77,9 +77,7 @@ def delete_account(account_id: int, db: Session = Depends(get_db)) -> Response:
     )
     # Cards stay, unlinked; without an account they can't export anymore.
     db.execute(
-        update(CreditCard)
-        .where(CreditCard.account_id == account_id)
-        .values(account_id=None, auto_export=False)
+        update(CreditCard).where(CreditCard.account_id == account_id).values(account_id=None)
     )
     db.delete(account)
     db.commit()

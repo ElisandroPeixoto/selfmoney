@@ -509,6 +509,27 @@ export interface paths {
         delete: operations["delete_purchase_api_cards__card_id__purchases__purchase_id__delete"];
         options?: never;
         head?: never;
+        /** Update Purchase */
+        patch: operations["update_purchase_api_cards__card_id__purchases__purchase_id__patch"];
+        trace?: never;
+    };
+    "/api/cards/{card_id}/purchases/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Purchases
+         * @description Export every pending installment of the given purchases.
+         */
+        post: operations["export_purchases_api_cards__card_id__purchases_export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -865,6 +886,11 @@ export interface components {
             /** Category Id */
             category_id?: number | null;
         };
+        /** CardPurchaseExport */
+        CardPurchaseExport: {
+            /** Purchase Ids */
+            purchase_ids: number[];
+        };
         /** CardPurchaseRead */
         CardPurchaseRead: {
             /** Id */
@@ -892,6 +918,33 @@ export interface components {
             category_id: number | null;
             /** Exported Installments */
             exported_installments: number;
+        };
+        /**
+         * CardPurchaseUpdate
+         * @description Partial update: only fields present in the request body are changed.
+         */
+        CardPurchaseUpdate: {
+            /** Description */
+            description?: string | null;
+            /** Amount */
+            amount?: number | string | null;
+            /** Installments */
+            installments?: number | null;
+            /** Date */
+            date?: string | null;
+            /** First Year */
+            first_year?: number | null;
+            /** First Month */
+            first_month?: number | null;
+            /** Category Id */
+            category_id?: number | null;
+        };
+        /** CardPurchasesExportResult */
+        CardPurchasesExportResult: {
+            /** Created */
+            created: number;
+            /** Purchases */
+            purchases: components["schemas"]["CardPurchaseRead"][];
         };
         /** CategoryCreate */
         CategoryCreate: {
@@ -996,11 +1049,6 @@ export interface components {
             currency: components["schemas"]["Currency"];
             /** Due Day */
             due_day?: number | null;
-            /**
-             * Auto Export
-             * @default false
-             */
-            auto_export: boolean;
         };
         /** CreditCardRead */
         CreditCardRead: {
@@ -1015,8 +1063,6 @@ export interface components {
             currency: components["schemas"]["Currency"];
             /** Due Day */
             due_day: number | null;
-            /** Auto Export */
-            auto_export: boolean;
             /** Pending Total */
             pending_total: string;
         };
@@ -1032,8 +1078,6 @@ export interface components {
             currency?: components["schemas"]["Currency"] | null;
             /** Due Day */
             due_day?: number | null;
-            /** Auto Export */
-            auto_export?: boolean | null;
         };
         /**
          * Currency
@@ -2535,6 +2579,77 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_purchase_api_cards__card_id__purchases__purchase_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: number;
+                purchase_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CardPurchaseUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardPurchaseRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_purchases_api_cards__card_id__purchases_export_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CardPurchaseExport"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardPurchasesExportResult"];
+                };
             };
             /** @description Validation Error */
             422: {

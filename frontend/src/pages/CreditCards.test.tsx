@@ -26,7 +26,6 @@ const card: CreditCard = {
   account_name: "Nubank",
   currency: "BRL",
   due_day: 10,
-  auto_export: false,
   pending_total: "1000.00",
 };
 
@@ -93,7 +92,7 @@ describe("Credit card page", () => {
   });
 
   it("creates the first card linked to an account", async () => {
-    const created = { ...card, auto_export: true, pending_total: "0.00" };
+    const created = { ...card, pending_total: "0.00" };
     const spy = mockApi({
       ...lookups,
       "GET /api/cards": () => ({ body: [] }),
@@ -109,7 +108,6 @@ describe("Credit card page", () => {
     // The account sets the currency, so there is nothing to pick.
     expect(within(form).queryByLabelText("Moeda")).not.toBeInTheDocument();
     await userEvent.type(within(form).getByLabelText("Dia do vencimento"), "10");
-    await userEvent.click(within(form).getByLabelText(/exportar automaticamente/i));
     await userEvent.click(within(form).getByRole("button", { name: "Adicionar cartão" }));
 
     expect(bodyOf(spy, "POST", "/api/cards")).toEqual({
@@ -117,20 +115,17 @@ describe("Credit card page", () => {
       account_id: 1,
       currency: "BRL",
       due_day: 10,
-      auto_export: true,
     });
     expect(await screen.findByRole("heading", { name: "Roxinho" })).toBeInTheDocument();
-    expect(screen.getByText("Automática")).toBeInTheDocument();
-    expect(screen.getByText(/as parcelas vão direto para Lançamentos/i)).toBeInTheDocument();
   });
 
-  it("can't export automatically without an account", async () => {
+  it("has no automatic export option and asks for a currency without an account", async () => {
     mockApi({ ...lookups, "GET /api/cards": () => ({ body: [] }) });
     renderApp("/cartoes");
 
     const form = await screen.findByRole("form", { name: "Novo cartão" });
+    expect(within(form).queryByLabelText(/exportar automaticamente/i)).not.toBeInTheDocument();
     await userEvent.selectOptions(within(form).getByLabelText("Conta vinculada"), "");
-    expect(within(form).getByLabelText(/exportar automaticamente/i)).toBeDisabled();
     expect(within(form).getByLabelText("Moeda")).toBeInTheDocument();
   });
 
@@ -255,6 +250,138 @@ describe("Credit card page", () => {
     expect(confirm.mock.calls[0][0]).toMatch(/já exportadas continuam em Lançamentos/);
     expect(await screen.findByText("Nenhuma compra neste cartão.")).toBeInTheDocument();
     expect(spy.mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(true);
+  });
+
+  it("edits a purchase, including its category", async () => {
+    let current = sofa;
+    const spy = mockApi({
+      ...lookups,
+      "GET /api/cards": () => ({ body: [card] }),
+      "GET /api/cards/9/bills": () => ({ body: [bill(2026, 10)] }),
+      "GET /api/cards/9/purchases": () => ({ body: [current] }),
+      "PATCH /api/cards/9/purchases/20": (init) => {
+        current = { ...current, ...JSON.parse(String(init?.body)) };
+        return { body: current };
+      },
+    });
+    renderApp("/cartoes");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Editar Sofá" }));
+    const form = screen.getByRole("form", { name: "Editar compra Sofá" });
+    const description = within(form).getByLabelText("Descrição");
+    expect(description).toHaveValue("Sofá");
+    expect(within(form).getByLabelText("1ª parcela na fatura de")).toHaveValue("2026-11");
+    await userEvent.clear(description);
+    await userEvent.type(description, "Sofá cama");
+    await userEvent.selectOptions(within(form).getByLabelText("Categoria"), "");
+    await userEvent.click(within(form).getByRole("button", { name: "Salvar compra" }));
+
+    expect(bodyOf(spy, "PATCH", "/api/cards/9/purchases/20")).toEqual({
+      description: "Sofá cama",
+      amount: "1000.00",
+      installments: 3,
+      date: "2026-10-20",
+      first_year: 2026,
+      first_month: 11,
+      category_id: null,
+    });
+    expect(await screen.findByText("Sofá cama")).toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: /Editar compra/ })).not.toBeInTheDocument();
+  });
+
+  it("locks amount and dates of a purchase that already has exported installments", async () => {
+    mockApi({
+      ...lookups,
+      "GET /api/cards": () => ({ body: [card] }),
+      "GET /api/cards/9/bills": () => ({ body: [bill(2026, 10)] }),
+      "GET /api/cards/9/purchases": () => ({ body: [{ ...sofa, exported_installments: 1 }] }),
+    });
+    renderApp("/cartoes");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Editar Sofá" }));
+    const form = screen.getByRole("form", { name: "Editar compra Sofá" });
+    expect(within(form).getByLabelText("Valor total")).toBeDisabled();
+    expect(within(form).getByLabelText("Parcelas")).toBeDisabled();
+    expect(within(form).getByLabelText("Data da compra")).toBeDisabled();
+    expect(within(form).getByLabelText("Descrição")).toBeEnabled();
+    expect(within(form).getByLabelText("Categoria")).toBeEnabled();
+    expect(within(form).getByText(/já tem parcelas em Lançamentos/)).toBeInTheDocument();
+  });
+
+  it("sends a single purchase to the transactions", async () => {
+    const spy = mockApi({
+      ...lookups,
+      "GET /api/cards": () => ({ body: [card] }),
+      "GET /api/cards/9/bills": () => ({ body: [bill(2026, 10)] }),
+      "GET /api/cards/9/purchases": () => ({ body: [sofa] }),
+      "POST /api/cards/9/purchases/export": () => ({
+        body: { created: 3, purchases: [{ ...sofa, exported_installments: 3 }] },
+      }),
+    });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderApp("/cartoes");
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Enviar Sofá para Lançamentos" }),
+    );
+
+    expect(confirm.mock.calls[0][0]).toMatch(/3 parcela\(s\) de a compra "Sofá"/);
+    expect(bodyOf(spy, "POST", "/api/cards/9/purchases/export")).toEqual({ purchase_ids: [20] });
+    const purchases = screen.getByRole("region", { name: "Compras" });
+    expect(await within(purchases).findByRole("status")).toHaveTextContent(
+      "3 lançamento(s) criado(s) na conta Nubank.",
+    );
+  });
+
+  it("sends only the ticked purchases and skips the ones already sent", async () => {
+    const mesa: CardPurchase = { ...sofa, id: 21, description: "Mesa", installments: 1 };
+    const sent: CardPurchase = { ...sofa, id: 22, description: "Geladeira", exported_installments: 3 };
+    const spy = mockApi({
+      ...lookups,
+      "GET /api/cards": () => ({ body: [card] }),
+      "GET /api/cards/9/bills": () => ({ body: [bill(2026, 10)] }),
+      "GET /api/cards/9/purchases": () => ({ body: [sofa, mesa, sent] }),
+      "POST /api/cards/9/purchases/export": () => ({
+        body: { created: 4, purchases: [sofa, mesa] },
+      }),
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderApp("/cartoes");
+
+    const send = await screen.findByRole("button", { name: /Enviar selecionadas/ });
+    expect(send).toBeDisabled();
+    // Fully sent purchases can't be ticked.
+    expect(screen.getByLabelText("Selecionar Geladeira")).toBeDisabled();
+
+    await userEvent.click(screen.getByLabelText("Selecionar Sofá"));
+    await userEvent.click(screen.getByLabelText("Selecionar Mesa"));
+    expect(send).toHaveTextContent("(2)");
+    await userEvent.click(send);
+
+    expect(bodyOf(spy, "POST", "/api/cards/9/purchases/export")).toEqual({
+      purchase_ids: [20, 21],
+    });
+    expect(await screen.findByText("4 lançamento(s) criado(s) na conta Nubank.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Enviar selecionadas/ })).toBeDisabled();
+  });
+
+  it("selects every pending purchase at once and needs an account to send", async () => {
+    const loose = { ...card, account_id: null, account_name: null };
+    mockApi({
+      ...lookups,
+      "GET /api/cards": () => ({ body: [loose] }),
+      "GET /api/cards/9/bills": () => ({ body: [bill(2026, 10)] }),
+      "GET /api/cards/9/purchases": () => ({ body: [sofa] }),
+    });
+    renderApp("/cartoes");
+
+    await userEvent.click(
+      await screen.findByLabelText("Selecionar todas as compras pendentes"),
+    );
+    expect(screen.getByLabelText("Selecionar Sofá")).toBeChecked();
+    expect(screen.getByRole("button", { name: /Enviar selecionadas/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Enviar Sofá para Lançamentos" })).toBeDisabled();
+    expect(screen.getAllByText("Vincule o cartão a uma conta para enviar.").length).toBe(1);
   });
 
   it("links an account to a card and switches between cards", async () => {

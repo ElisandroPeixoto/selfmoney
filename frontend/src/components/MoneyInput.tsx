@@ -34,6 +34,7 @@ interface Props {
   /** Keep an explicit zero ("0.00") instead of treating it as empty. */
   allowZero?: boolean;
   required?: boolean;
+  disabled?: boolean;
   "aria-label"?: string;
 }
 
@@ -50,6 +51,7 @@ export default function MoneyInput({
   allowNegative = false,
   allowZero = false,
   required,
+  disabled,
   "aria-label": ariaLabel,
 }: Props) {
   // A lone "-" has no digits yet, so it can't live in `value`; remember it until they arrive.
@@ -94,6 +96,7 @@ export default function MoneyInput({
         onChange={handleChange}
         placeholder="0,00"
         required={required}
+        disabled={disabled}
         aria-label={ariaLabel}
       />
     </div>

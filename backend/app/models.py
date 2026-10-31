@@ -224,8 +224,6 @@ class CreditCard(Base):
     )
     # Day of the month the bill is paid; exported expenses are dated on it.
     due_day: Mapped[int | None] = mapped_column(nullable=True)
-    # Export every installment to the transactions as soon as a purchase is added.
-    auto_export: Mapped[bool] = mapped_column(default=False, server_default=sa_false())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     account: Mapped[Account | None] = relationship()

@@ -36,6 +36,8 @@ export type CreditCardCreate = Schemas["CreditCardCreate"];
 export type CreditCardUpdate = Schemas["CreditCardUpdate"];
 export type CardPurchase = Schemas["CardPurchaseRead"];
 export type CardPurchaseCreate = Schemas["CardPurchaseCreate"];
+export type CardPurchaseUpdate = Schemas["CardPurchaseUpdate"];
+export type CardPurchasesExportResult = Schemas["CardPurchasesExportResult"];
 export type CardBill = Schemas["CardBillRead"];
 export type CardInstallment = Schemas["CardInstallmentRead"];
 export type CardExportResult = Schemas["CardExportResult"];
@@ -433,6 +435,28 @@ export function createCardPurchase(
   return request<CardPurchase>(`/cards/${cardId}/purchases`, {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export function updateCardPurchase(
+  cardId: number,
+  purchaseId: number,
+  changes: CardPurchaseUpdate,
+): Promise<CardPurchase> {
+  return request<CardPurchase>(`/cards/${cardId}/purchases/${purchaseId}`, {
+    method: "PATCH",
+    body: JSON.stringify(changes),
+  });
+}
+
+/** Exports every pending installment of the given purchases to the transactions. */
+export function exportCardPurchases(
+  cardId: number,
+  purchaseIds: number[],
+): Promise<CardPurchasesExportResult> {
+  return request<CardPurchasesExportResult>(`/cards/${cardId}/purchases/export`, {
+    method: "POST",
+    body: JSON.stringify({ purchase_ids: purchaseIds }),
   });
 }
 

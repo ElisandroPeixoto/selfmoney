@@ -127,10 +127,11 @@ API em http://localhost:8000 — documentação interativa em http://localhost:8
 | POST | `/api/movements/withdrawal` | Retirar dinheiro de uma conta (`account_id`, `amount`, `reason`) |
 | PATCH | `/api/movements/{id}` | Editar valor, justificativa e contas (`from_account_id`/`to_account_id`, conforme o tipo) |
 | DELETE | `/api/movements/{id}` | Excluir uma movimentação (os saldos voltam a ficar como sem ela) |
-| GET/POST | `/api/cards` | Listar (com o total ainda não exportado) / criar cartões (`name`, `account_id`, `currency`, `due_day`, `auto_export`) |
+| GET/POST | `/api/cards` | Listar (com o total ainda não exportado) / criar cartões (`name`, `account_id`, `currency`, `due_day`) |
 | PATCH/DELETE | `/api/cards/{id}` | Editar / excluir cartão e suas compras (despesas já exportadas ficam em Lançamentos) |
 | GET/POST | `/api/cards/{id}/purchases` | Listar / adicionar compra (`description`, `amount` total, `installments`, `date`, `category_id`; opcional `first_year`/`first_month`, padrão: mês seguinte à compra) |
-| DELETE | `/api/cards/{id}/purchases/{purchase_id}` | Excluir compra |
+| PATCH/DELETE | `/api/cards/{id}/purchases/{purchase_id}` | Editar (parcial; com parcelas já lançadas só descrição e categoria mudam) / excluir compra |
+| POST | `/api/cards/{id}/purchases/export` | Lança como despesas todas as parcelas pendentes das compras indicadas (`purchase_ids`; 409 sem conta) |
 | GET | `/api/cards/{id}/bills?year=&month=&months=` | Faturas de `months` meses seguidos a partir de `year`/`month`, com as parcelas de cada uma |
 | POST | `/api/cards/{id}/bills/{year}/{month}/export` | Lança as parcelas pendentes da fatura como despesas da conta vinculada (409 sem conta) |
 | GET | `/api/reports/monthly?year=&currency=` | Receitas e despesas de cada um dos 12 meses do ano |

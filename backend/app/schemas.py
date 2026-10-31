@@ -387,7 +387,6 @@ class CreditCardCreate(BaseModel):
     # Ignored when an account is linked: the card uses the account's currency.
     currency: Currency = Currency.BRL
     due_day: int | None = DayOfMonth
-    auto_export: bool = False
 
 
 class CreditCardUpdate(BaseModel):
@@ -397,7 +396,6 @@ class CreditCardUpdate(BaseModel):
     account_id: int | None = None
     currency: Currency | None = None
     due_day: int | None = DayOfMonth
-    auto_export: bool | None = None
 
 
 class CreditCardRead(BaseModel):
@@ -407,7 +405,6 @@ class CreditCardRead(BaseModel):
     account_name: str | None
     currency: Currency
     due_day: int | None
-    auto_export: bool
     # Installments not exported to the transactions yet, in any month.
     pending_total: Decimal
 
@@ -427,6 +424,22 @@ class CardPurchaseCreate(BaseModel):
         if (self.first_year is None) != (self.first_month is None):
             raise ValueError("Send both first_year and first_month, or neither")
         return self
+
+
+class CardPurchaseUpdate(BaseModel):
+    """Partial update: only fields present in the request body are changed."""
+
+    description: str | None = Field(default=None, min_length=1, max_length=150)
+    amount: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=2)
+    installments: int | None = Field(default=None, ge=1, le=48)
+    date: _Date | None = None
+    first_year: int | None = Field(default=None, ge=2000, le=2100)
+    first_month: int | None = Field(default=None, ge=1, le=12)
+    category_id: int | None = None
+
+
+class CardPurchaseExport(BaseModel):
+    purchase_ids: list[int] = Field(min_length=1, max_length=500)
 
 
 class CardPurchaseRead(BaseModel):
@@ -465,3 +478,8 @@ class CardBillRead(BaseModel):
 class CardExportResult(BaseModel):
     created: int
     bill: CardBillRead
+
+
+class CardPurchasesExportResult(BaseModel):
+    created: int
+    purchases: list[CardPurchaseRead]

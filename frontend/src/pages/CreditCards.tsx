@@ -3,139 +3,24 @@ import { useSearchParams } from "react-router-dom";
 
 import {
   deleteCard,
-  deleteCardPurchase,
   fetchAccounts,
-  fetchCardPurchases,
   fetchCards,
   fetchCategories,
   type Account,
-  type CardPurchase,
   type Category,
   type CreditCard,
 } from "../api/client";
 import CardBills from "../components/CardBills";
 import CardForm from "../components/CardForm";
 import CardPurchaseForm from "../components/CardPurchaseForm";
-import CategoryLabel from "../components/CategoryLabel";
+import CardPurchaseList from "../components/CardPurchaseList";
 import { EditIcon, TrashIcon } from "../components/icons";
-import { formatCurrency, formatDate, formatMonth } from "../lib/format";
-import { UNCATEGORIZED_COLOR } from "../lib/options";
+import { formatCurrency } from "../lib/format";
 
 interface Lookups {
   cards: CreditCard[];
   accounts: Account[];
   categories: Category[];
-}
-
-interface PurchasesProps {
-  card: CreditCard;
-  categories: Category[];
-  version: number;
-  onDeleted: () => void;
-}
-
-function PurchaseList({ card, categories, version, onDeleted }: PurchasesProps) {
-  const [purchases, setPurchases] = useState<CardPurchase[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchCardPurchases(card.id, controller.signal)
-      .then(setPurchases)
-      .catch(() => !controller.signal.aborted && setError("Não foi possível carregar as compras."));
-    return () => controller.abort();
-  }, [card.id, version]);
-
-  async function handleDelete(purchase: CardPurchase) {
-    const exported =
-      purchase.exported_installments > 0
-        ? " As parcelas já exportadas continuam em Lançamentos."
-        : "";
-    if (!window.confirm(`Excluir a compra "${purchase.description}"?${exported}`)) return;
-    try {
-      await deleteCardPurchase(card.id, purchase.id);
-      onDeleted();
-    } catch {
-      setError("Não foi possível excluir a compra.");
-    }
-  }
-
-  const categoriesById = new Map(categories.map((c) => [c.id, c]));
-
-  return (
-    <section className="card" aria-labelledby="card-purchases-title">
-      <h2 id="card-purchases-title" className="card-title">
-        Compras
-      </h2>
-      {error && (
-        <p role="alert" className="error">
-          {error}
-        </p>
-      )}
-      {purchases === null && !error && <p className="muted">Carregando…</p>}
-      {purchases?.length === 0 && <p className="empty">Nenhuma compra neste cartão.</p>}
-      {purchases && purchases.length > 0 && (
-        <div className="table-scroll">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th scope="col">Data</th>
-                <th scope="col">Descrição</th>
-                <th scope="col">Categoria</th>
-                <th scope="col">Parcelas</th>
-                <th scope="col">1ª fatura</th>
-                <th scope="col">Lançadas</th>
-                <th scope="col" className="num">
-                  Total
-                </th>
-                <th scope="col">
-                  <span className="visually-hidden">Ações</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {purchases.map((p) => {
-                const category =
-                  p.category_id !== null ? categoriesById.get(p.category_id) : undefined;
-                return (
-                  <tr key={p.id}>
-                    <td className="nowrap">{formatDate(p.date)}</td>
-                    <td>{p.description}</td>
-                    <td>
-                      <CategoryLabel
-                        name={category?.name ?? "Sem categoria"}
-                        color={category?.color ?? UNCATEGORIZED_COLOR}
-                        icon={category?.icon}
-                      />
-                    </td>
-                    <td className="nowrap">
-                      {p.installments}x de {formatCurrency(p.installment_amount, card.currency)}
-                    </td>
-                    <td className="nowrap">{formatMonth(p.first_year, p.first_month)}</td>
-                    <td className="nowrap">
-                      {p.exported_installments} de {p.installments}
-                    </td>
-                    <td className="value nowrap">{formatCurrency(p.amount, card.currency)}</td>
-                    <td className="row-actions">
-                      <button
-                        type="button"
-                        className="icon-button danger"
-                        onClick={() => handleDelete(p)}
-                        aria-label={`Excluir ${p.description}`}
-                        title="Excluir compra"
-                      >
-                        <TrashIcon />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
 }
 
 export default function CreditCards() {
@@ -305,7 +190,7 @@ export default function CreditCards() {
               </div>
               <div>
                 <dt>Exportação</dt>
-                <dd>{card.auto_export ? "Automática" : "Manual, por fatura"}</dd>
+                <dd>Manual: por fatura ou por compra</dd>
               </div>
               <div>
                 <dt>A lançar</dt>
@@ -339,7 +224,7 @@ export default function CreditCards() {
               key={card.id}
               card={card}
               categories={lookups.categories}
-              onCreated={changed}
+              onSaved={changed}
             />
           </section>
 
@@ -351,11 +236,11 @@ export default function CreditCards() {
             onExported={changed}
           />
 
-          <PurchaseList
+          <CardPurchaseList
             card={card}
             categories={lookups.categories}
             version={version}
-            onDeleted={changed}
+            onChanged={changed}
           />
         </>
       )}
