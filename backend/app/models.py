@@ -128,6 +128,9 @@ class Budget(Base):
     currency: Mapped[Currency] = mapped_column(
         _string_enum(Currency, 3), default=Currency.BRL, server_default=Currency.BRL.value
     )
+    # Amount the user intends to set aside this month; "Extras" is what's left after it.
+    saving: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"), server_default="0")
+    auto_extras: Mapped[bool] = mapped_column(default=False, server_default=sa_false())
 
     items: Mapped[list["BudgetItem"]] = relationship(
         back_populates="budget", cascade="all, delete-orphan", order_by="BudgetItem.id"
@@ -142,6 +145,8 @@ class BudgetItem(Base):
     budget_id: Mapped[int] = mapped_column(ForeignKey("budgets.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(String(100))
     planned: Mapped[Decimal] = mapped_column(Money)
+    # The automatic "Extras" item: its planned amount is derived on read, never stored.
+    is_extras: Mapped[bool] = mapped_column(default=False, server_default=sa_false())
 
     budget: Mapped[Budget] = relationship(back_populates="items")
     transactions: Mapped[list[Transaction]] = relationship(back_populates="budget_item")
@@ -253,3 +258,43 @@ class CardPurchase(Base):
 
     card: Mapped[CreditCard] = relationship(back_populates="purchases")
     category: Mapped[Category | None] = relationship()
+
+
+class BalanceCheck(Base):
+    """A moment at which the user reviewed their finances (a "balanço")."""
+
+    __tablename__ = "balance_checks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True
+    )
+
+
+class SpendingCollection(Base):
+    """A named group of recurring costs (e.g. subscriptions) whose amounts are summed."""
+
+    __tablename__ = "spending_collections"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True)
+    currency: Mapped[Currency] = mapped_column(
+        _string_enum(Currency, 3), default=Currency.BRL, server_default=Currency.BRL.value
+    )
+
+    items: Mapped[list["CollectionItem"]] = relationship(
+        back_populates="collection", cascade="all, delete-orphan", order_by="CollectionItem.id"
+    )
+
+
+class CollectionItem(Base):
+    __tablename__ = "collection_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    collection_id: Mapped[int] = mapped_column(
+        ForeignKey("spending_collections.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(100))
+    amount: Mapped[Decimal] = mapped_column(Money)
+
+    collection: Mapped[SpendingCollection] = relationship(back_populates="items")

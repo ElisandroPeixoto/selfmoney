@@ -6,6 +6,7 @@ import {
   addBudgetItem,
   deleteBudgetItem,
   fetchTransactions,
+  updateBudget,
   updateBudgetItem,
   updateTransaction,
   type Account,
@@ -90,7 +91,12 @@ function ItemRow({
           </label>
           <label className="field">
             <span>Valor planejado</span>
-            <MoneyInput value={planned} onChange={setPlanned} currency={budget.currency} />
+            <MoneyInput
+              value={planned}
+              onChange={setPlanned}
+              currency={budget.currency}
+              allowZero
+            />
           </label>
           <button type="button" className="button" onClick={() => setEditing(false)}>
             Cancelar
@@ -112,9 +118,13 @@ function ItemRow({
     <li className="budget-item">
       <div className="budget-item-header">
         <strong className="grow">{item.name}</strong>
-        <button type="button" className="link-button" onClick={() => setEditing(true)}>
-          Editar
-        </button>
+        {item.is_extras ? (
+          <span className="muted">Calculado automaticamente</span>
+        ) : (
+          <button type="button" className="link-button" onClick={() => setEditing(true)}>
+            Editar
+          </button>
+        )}
         <button
           type="button"
           className="icon-button danger"
@@ -133,6 +143,90 @@ function ItemRow({
         label={`Gasto em ${item.name}`}
       />
     </li>
+  );
+}
+
+function ExtrasCard({ budget, onChange }: { budget: Budget; onChange: (b: Budget) => void }) {
+  const [saving, setSaving] = useState(budget.saving);
+  const [error, setError] = useState<string | null>(null);
+
+  // Follow the server value after a refresh or when another budget is opened.
+  useEffect(() => setSaving(budget.saving), [budget.id, budget.saving]);
+
+  async function save(changes: { saving: string }) {
+    try {
+      onChange(await updateBudget(budget.id, changes));
+      setError(null);
+    } catch {
+      setError("Não foi possível salvar. Tente novamente.");
+    }
+  }
+
+  function handleSaving(event: FormEvent) {
+    event.preventDefault();
+    if (saving !== "") void save({ saving });
+  }
+
+  const extras = budget.extras === null ? null : Number(budget.extras);
+  // The Extras item is part of the planned total; the calculation uses only the other categories.
+  const extrasPlanned = budget.items.find((i) => i.is_extras)?.planned ?? "0";
+  const otherPlanned = String(Number(budget.planned) - Number(extrasPlanned));
+  const money = (value: string) => formatCurrency(value, budget.currency);
+
+  return (
+    <section className="card" aria-labelledby="budget-extras-title">
+      <h3 id="budget-extras-title" className="card-title">
+        Saving e Extras
+      </h3>
+      <form className="inline-form" onSubmit={handleSaving} aria-label="Definir saving">
+        <label className="field">
+          <span>Saving do mês</span>
+          <MoneyInput value={saving} onChange={setSaving} currency={budget.currency} allowZero />
+        </label>
+        <button
+          type="submit"
+          className="button"
+          disabled={saving === "" || Number(saving) === Number(budget.saving)}
+        >
+          Salvar saving
+        </button>
+      </form>
+      <p className="hint">
+        Quanto você pretende guardar neste mês. Pode ser alterado a qualquer momento. O saving
+        entra no cálculo da categoria Extras.
+      </p>
+
+      {extras !== null && (
+        <dl className="extras-breakdown" aria-label="Cálculo dos extras">
+          <div>
+            <dt>Receitas do mês</dt>
+            <dd>{money(budget.income)}</dd>
+          </div>
+          <div>
+            <dt>Categorias do orçamento</dt>
+            <dd>− {money(otherPlanned)}</dd>
+          </div>
+          <div>
+            <dt>Saving</dt>
+            <dd>− {money(budget.saving)}</dd>
+          </div>
+          <div className="extras-total">
+            <dt>Extras</dt>
+            <dd className={extras < 0 ? "negative" : undefined}>{money(budget.extras ?? "0")}</dd>
+          </div>
+        </dl>
+      )}
+      {extras !== null && extras < 0 && (
+        <p className="hint negative">
+          As categorias e o saving somam mais do que as receitas do mês.
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="error">
+          {error}
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -179,6 +273,19 @@ export default function BudgetDetail({
         err instanceof ApiError && err.status === 409
           ? "Já existe um item com esse nome neste orçamento."
           : "Não foi possível adicionar o item.",
+      );
+    }
+  }
+
+  async function handleAddExtras() {
+    try {
+      onChange(await updateBudget(budget.id, { auto_extras: true }));
+      setFormError(null);
+    } catch (err) {
+      setFormError(
+        err instanceof ApiError && err.status === 409
+          ? "Já existe uma categoria chamada Extras neste orçamento."
+          : "Não foi possível adicionar o Extras.",
       );
     }
   }
@@ -232,6 +339,8 @@ export default function BudgetDetail({
         </div>
       </section>
 
+      <ExtrasCard budget={budget} onChange={onChange} />
+
       <section className="card" aria-labelledby="budget-items-title">
         <h3 id="budget-items-title" className="card-title">
           Categorias do orçamento
@@ -247,6 +356,17 @@ export default function BudgetDetail({
               <ItemRow key={item.id} item={item} budget={budget} onChange={onChange} />
             ))}
           </ul>
+        )}
+
+        {!budget.auto_extras && (
+          <div className="button-row">
+            <button type="button" className="button" onClick={handleAddExtras}>
+              Adicionar Extras
+            </button>
+            <small className="muted">
+              Categoria calculada: receitas do mês − demais categorias − saving.
+            </small>
+          </div>
         )}
 
         <form className="inline-form add-item-form" onSubmit={handleAddItem}>
@@ -269,7 +389,12 @@ export default function BudgetDetail({
           </label>
           <label className="field">
             <span>Valor planejado</span>
-            <MoneyInput value={planned} onChange={setPlanned} currency={budget.currency} />
+            <MoneyInput
+              value={planned}
+              onChange={setPlanned}
+              currency={budget.currency}
+              allowZero
+            />
           </label>
           <button
             type="submit"

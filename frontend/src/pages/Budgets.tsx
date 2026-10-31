@@ -276,7 +276,7 @@ export default function Budgets() {
   );
 
   return (
-    <div className="page page-wide">
+    <div className="page">
       <header className="page-header">
         <h1>Orçamentos</h1>
         <p className="muted">

@@ -31,6 +31,8 @@ interface Props {
   onChange: (value: string) => void;
   currency?: string;
   allowNegative?: boolean;
+  /** Keep an explicit zero ("0.00") instead of treating it as empty. */
+  allowZero?: boolean;
   required?: boolean;
   "aria-label"?: string;
 }
@@ -46,6 +48,7 @@ export default function MoneyInput({
   onChange,
   currency = "BRL",
   allowNegative = false,
+  allowZero = false,
   required,
   "aria-label": ariaLabel,
 }: Props) {
@@ -65,8 +68,12 @@ export default function MoneyInput({
     const digits = raw.replace(/\D/g, "").replace(/^0+/, "").slice(0, MAX_DIGITS);
     const wantsNegative = allowNegative && raw.includes("-");
     if (digits === "") {
+      const typed = raw.replace(/\D/g, "");
+      // Deleting from "0,00" must still be able to empty the field.
+      const keepZero =
+        allowZero && typed !== "" && !(cents === 0 && typed.length < text.replace(/\D/g, "").length);
       setPendingMinus(wantsNegative);
-      onChange("");
+      onChange(keepZero ? "0.00" : "");
       return;
     }
     setPendingMinus(false);

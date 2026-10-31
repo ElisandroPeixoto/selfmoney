@@ -26,11 +26,15 @@ function budget(overrides: Partial<Budget> = {}): Budget {
     year: 2026,
     month: 10,
     currency: "BRL",
+    saving: "0.00",
+    auto_extras: false,
+    income: "0.00",
+    extras: null,
     planned: "1000.00",
     spent: "0.00",
     available: "1000.00",
     items: [
-      { id: 70, name: "Cartão de crédito", planned: "1000.00", spent: "0.00", available: "1000.00" },
+      { id: 70, name: "Cartão de crédito", is_extras: false, planned: "1000.00", spent: "0.00", available: "1000.00" },
     ],
     ...overrides,
   };
@@ -114,7 +118,7 @@ describe("Budgets page", () => {
           available: "1080.00",
           items: [
             ...budget().items,
-            { id: 71, name: body(init).name, planned: "80.00", spent: "0.00", available: "80.00" },
+            { id: 71, name: body(init).name, is_extras: false, planned: "80.00", spent: "0.00", available: "80.00" },
           ],
         }),
       }),
@@ -130,6 +134,79 @@ describe("Budgets page", () => {
     expect(body(post?.[1])).toEqual({ name: "Assinaturas", planned: "80.00" });
     const summary = screen.getByRole("region", { name: "Resumo do orçamento" });
     expect(summary).toHaveTextContent("R$ 1.080,00");
+  });
+
+  it("adds a category planned at zero", async () => {
+    const spy = mockApi({
+      ...baseRoutes,
+      "GET /api/budgets": () => ({ body: [budget()] }),
+      "GET /api/budgets/7": () => ({ body: budget() }),
+      "GET /api/transactions": () => ({ body: [] }),
+      "POST /api/budgets/7/items": (init) => ({
+        status: 201,
+        body: budget({
+          items: [
+            ...budget().items,
+            { id: 72, name: body(init).name, is_extras: false, planned: "0.00", spent: "0.00", available: "0.00" },
+          ],
+        }),
+      }),
+    });
+    renderApp("/orcamentos/7");
+
+    await userEvent.type(await screen.findByLabelText("Nova categoria"), "Viagem");
+    await userEvent.type(screen.getByLabelText("Valor planejado"), "0");
+    await userEvent.click(screen.getByRole("button", { name: "Adicionar" }));
+
+    expect(await screen.findByText("Viagem")).toBeInTheDocument();
+    const post = spy.mock.calls.find(([, init]) => init?.method === "POST");
+    expect(body(post?.[1])).toEqual({ name: "Viagem", planned: "0.00" });
+  });
+
+  it("adds the Extras category and edits the saving", async () => {
+    const extrasItem = (saving: number) => ({
+      id: 73,
+      name: "Extras",
+      is_extras: true,
+      planned: (4000 - 1000 - saving).toFixed(2),
+      spent: "0.00",
+      available: (4000 - 1000 - saving).toFixed(2),
+    });
+    let current = budget({ income: "4000.00" });
+    const spy = mockApi({
+      ...baseRoutes,
+      "GET /api/budgets": () => ({ body: [current] }),
+      "GET /api/budgets/7": () => ({ body: current }),
+      "GET /api/transactions": () => ({ body: [] }),
+      "PATCH /api/budgets/7": (init) => {
+        const changes = body(init);
+        const saving = changes.saving ?? current.saving;
+        const autoExtras = changes.auto_extras ?? current.auto_extras;
+        current = {
+          ...current,
+          saving,
+          auto_extras: autoExtras,
+          extras: autoExtras ? (4000 - 1000 - Number(saving)).toFixed(2) : null,
+          items: [...budget().items, ...(autoExtras ? [extrasItem(Number(saving))] : [])],
+        };
+        return { body: current };
+      },
+    });
+    renderApp("/orcamentos/7");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Adicionar Extras" }));
+    const breakdown = await screen.findByLabelText("Cálculo dos extras");
+    expect(breakdown).toHaveTextContent("R$ 3.000,00");
+    expect(screen.getByLabelText("Gasto em Extras")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Adicionar Extras" })).not.toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText("Saving do mês"), "50000");
+    await userEvent.click(screen.getByRole("button", { name: "Salvar saving" }));
+
+    expect(await screen.findByLabelText("Cálculo dos extras")).toHaveTextContent("R$ 2.500,00");
+    const patches = spy.mock.calls.filter(([, init]) => init?.method === "PATCH");
+    expect(body(patches[0][1])).toEqual({ auto_extras: true });
+    expect(body(patches[1][1])).toEqual({ saving: "500.00" });
   });
 
   it("associates an expense with a budget category and refreshes the totals", async () => {

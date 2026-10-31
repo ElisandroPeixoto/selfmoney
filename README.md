@@ -109,9 +109,15 @@ API em http://localhost:8000 — documentação interativa em http://localhost:8
 | PATCH | `/api/transactions/{id}` | Editar qualquer campo (descrição, valor, tipo, data, conta, categoria, item de orçamento); categoria ou vínculo de orçamento que deixem de valer pela mudança são removidos |
 | DELETE | `/api/transactions/{id}` | Excluir transação |
 | GET/POST | `/api/budgets` | Listar / criar orçamento do mês (`year`, `month`, `currency`; opcional `template_id` ou `source_budget_id`) |
-| GET/DELETE | `/api/budgets/{id}` | Ver (com planejado, gasto e disponível por item) / excluir orçamento |
+| GET/PATCH/DELETE | `/api/budgets/{id}` | Ver (com planejado, gasto e disponível por item, receitas do mês e `extras`) / editar `saving` e `auto_extras` (cria/remove a categoria Extras calculada) / excluir orçamento |
 | POST | `/api/budgets/{id}/items` | Adicionar categoria ao orçamento (`name`, `planned`) |
 | PATCH/DELETE | `/api/budgets/{id}/items/{item_id}` | Editar / remover categoria do orçamento |
+| GET/POST | `/api/balance-checks` | Listar / registrar um balanço financeiro (grava a data e hora atuais) |
+| DELETE | `/api/balance-checks/{id}` | Excluir um registro de balanço |
+| GET/POST | `/api/spending-collections` | Listar / criar coleção de gastos (`name`, `currency`), com o total somado |
+| PATCH/DELETE | `/api/spending-collections/{id}` | Renomear / excluir coleção (e seus itens) |
+| POST | `/api/spending-collections/{id}/items` | Adicionar item à coleção (`name`, `amount` > 0) |
+| DELETE | `/api/spending-collections/{id}/items/{item_id}` | Remover item da coleção |
 | POST | `/api/budgets/{id}/save-template` | Salvar a estrutura do orçamento como modelo (`name`) |
 | GET | `/api/budget-templates` | Listar modelos |
 | DELETE | `/api/budget-templates/{id}` | Excluir modelo |

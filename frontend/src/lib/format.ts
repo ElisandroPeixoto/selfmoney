@@ -63,6 +63,20 @@ export function formatDateTime(iso: string): string {
   return dateTime.format(new Date(iso));
 }
 
+const dateTimeWithWeekday = new Intl.DateTimeFormat("pt-BR", {
+  weekday: "long",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+/** "sexta-feira, 30/10/2026, 18:45": the weekday in the user's local time zone. */
+export function formatDateTimeWithWeekday(iso: string): string {
+  return dateTimeWithWeekday.format(new Date(iso));
+}
+
 export function daysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate();
 }

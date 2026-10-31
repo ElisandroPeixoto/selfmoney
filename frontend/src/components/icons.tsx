@@ -57,6 +57,21 @@ export const WalletIcon = () => (
   </Icon>
 );
 
+export const CheckIcon = () => (
+  <Icon>
+    <rect x="4" y="3" width="16" height="18" rx="2" />
+    <path d="m9 12 2 2 4-4" />
+    <path d="M9 7h6" />
+  </Icon>
+);
+
+export const CollectionIcon = () => (
+  <Icon>
+    <path d="m12 3 9 5-9 5-9-5z" />
+    <path d="m3 13 9 5 9-5" />
+  </Icon>
+);
+
 export const TagIcon = () => (
   <Icon>
     <path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z" />

@@ -10,12 +10,14 @@ from app.database import Base, engine
 from app.routers import (
     accounts,
     auth,
+    balance_checks,
     budgets,
     cards,
     categories,
     dashboard,
     movements,
     reports,
+    spending_collections,
     transactions,
 )
 
@@ -44,7 +46,18 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(auth.router, prefix="/api")
-    protected = (accounts, categories, transactions, dashboard, reports, budgets, movements, cards)
+    protected = (
+        accounts,
+        categories,
+        transactions,
+        dashboard,
+        reports,
+        budgets,
+        movements,
+        cards,
+        balance_checks,
+        spending_collections,
+    )
     for module in protected:
         app.include_router(module.router, prefix="/api", dependencies=[Depends(auth.require_auth)])
     return app

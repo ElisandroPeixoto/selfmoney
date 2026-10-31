@@ -90,7 +90,8 @@ frontend/src/
 ```
 
 Rotas do frontend: `/` Dashboard, `/lancamentos`, `/orcamentos` e `/orcamentos/:budgetId`,
-`/movimentacoes`, `/contas`, `/categorias`, `/relatorios`, `/cartoes` (`?cartao=id`).
+`/movimentacoes`, `/contas`, `/categorias`, `/relatorios`, `/cartoes` (`?cartao=id`), `/balancos`,
+`/colecoes` (`?colecao=id`).
 
 ## Domínio e regras de negócio
 
@@ -118,6 +119,13 @@ Rotas do frontend: `/` Dashboard, `/lancamentos`, `/orcamentos` e `/orcamentos/:
   orçamento via `transactions.budget_item_id`, e só pode ser vinculada se for **despesa, do mesmo mês e
   da mesma moeda** do orçamento (`services.check_budget_link`). Excluir orçamento/item só desvincula.
   Estruturas podem ser salvas como **modelo** (`BudgetTemplate`) ou copiadas de outro orçamento.
+  **Saving e Extras:** o orçamento guarda `saving` (quanto o usuário quer guardar no mês, sempre editável via
+  `PATCH /api/budgets/{id}`) e `auto_extras`. Ligar `auto_extras` (botão "Adicionar Extras") cria um
+  `BudgetItem` real com `is_extras=true` e nome "Extras" (409 se já houver item com esse nome); desligar, ou
+  remover o item, apaga-o e desvincula as despesas. O `planned` desse item nunca é gravado: `services.budget_read`
+  o calcula = max(0, receitas do mês e da moeda − soma planejada dos demais itens − `saving`). Por ser item
+  real, entra em `planned`, aceita despesas e aparece nos gráficos. `extras` (resposta) é o valor bruto e
+  pode ser negativo (a tela avisa). O item não é editável à mão e não vai para modelos nem cópias.
   "Perto do limite" = a partir de 80% do planejado (`NEAR_LIMIT` em `BudgetChart.tsx`).
 - **Movimentações** (`AccountMovement`: `transfer`, `deposit`, `withdrawal`): não pertencem a mês,
   não aparecem em Lançamentos nem em relatórios mensais, mas alteram saldos. **Justificativa obrigatória**
@@ -137,6 +145,11 @@ Rotas do frontend: `/` Dashboard, `/lancamentos`, `/orcamentos` e `/orcamentos/:
   vez; excluir a despesa a deixa pendente de novo. `auto_export` exporta todas as parcelas ao criar a
   compra e exige conta. Excluir compra/cartão mantém as despesas exportadas (só desvincula); excluir a
   conta desvincula o cartão e desliga `auto_export`. Categoria usada em compra não pode virar receita (409).
+- **Balanços** (`BalanceCheck`): só um carimbo `created_at` (UTC) gravado ao apertar o botão na página
+  Balanços; lista com exclusão (`window.confirm`).
+- **Coleções** (`SpendingCollection`, `CollectionItem`): grupo nomeado (nome único) com moeda e
+  itens (nome + valor > 0, sem unicidade). O total é somado em `services.collection_read`, nunca gravado.
+  Independentes de lançamentos e orçamentos; só adicionar/remover itens (sem editar).
 - **Datas/horas:** `created_at` das movimentações é gravado em UTC; o schema devolve com `+00:00`
   (SQLite perde o fuso). Filtros por dia usam o dia **local** do usuário: o frontend manda instantes
   com fuso (`created_from`/`created_before` no histórico) ou o deslocamento em minutos (`utc_offset`

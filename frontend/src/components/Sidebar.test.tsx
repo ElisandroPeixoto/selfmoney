@@ -43,8 +43,10 @@ describe("Sidebar", () => {
     expect(items[0]).toHaveTextContent("Dashboard");
     expect(items[0].nextElementSibling).toBe(within(nav).getByRole("separator"));
     expect(items.slice(1).map((li) => li.textContent)).toEqual([
+      "Balanços",
       "Cartão de Crédito",
       "Categorias",
+      "Coleções",
       "Contas",
       "Lançamentos",
       "Movimentações",

@@ -8,7 +8,9 @@ import { useTheme } from "../theme/theme-context";
 import {
   BudgetIcon,
   CardIcon,
+  CheckIcon,
   CollapseIcon,
+  CollectionIcon,
   DashboardIcon,
   ListIcon,
   LogoutIcon,
@@ -43,6 +45,8 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/categorias", label: "Categorias", icon: <TagIcon /> },
   { to: "/relatorios", label: "Relatórios", icon: <ReportIcon /> },
   { to: "/cartoes", label: "Cartão de Crédito", icon: <CardIcon /> },
+  { to: "/balancos", label: "Balanços", icon: <CheckIcon /> },
+  { to: "/colecoes", label: "Coleções", icon: <CollectionIcon /> },
 ].sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
 
 function readCollapsed(): boolean {

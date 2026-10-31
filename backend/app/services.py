@@ -16,6 +16,7 @@ from app.models import (
     Category,
     CreditCard,
     Currency,
+    SpendingCollection,
     Transaction,
     TransactionType,
 )
@@ -27,6 +28,8 @@ from app.schemas import (
     CardInstallmentRead,
     CardPurchaseRead,
     CategorySpending,
+    CollectionItemRead,
+    CollectionRead,
     CreditCardRead,
     CurrencyTotal,
     DashboardSummary,
@@ -309,6 +312,9 @@ def _money(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"))
 
 
+EXTRAS_NAME = "Extras"
+
+
 class BudgetLinkError(ValueError):
     """Raised when an expense can't be counted against a budget item."""
 
@@ -332,6 +338,20 @@ def check_budget_link(
         raise BudgetLinkError("Expense account currency differs from the budget's")
 
 
+def _budget_income(db: Session, budget: Budget) -> Decimal:
+    total = db.scalar(
+        select(func.sum(Transaction.amount))
+        .join(Account, Transaction.account_id == Account.id)
+        .where(
+            Transaction.type == TransactionType.INCOME,
+            func.extract("year", Transaction.date) == budget.year,
+            func.extract("month", Transaction.date) == budget.month,
+            Account.currency == budget.currency,
+        )
+    )
+    return Decimal(str(total)) if total is not None else Decimal("0")
+
+
 def budget_read(db: Session, budget: Budget) -> BudgetRead:
     item_ids = [item.id for item in budget.items]
     spent_by_item: dict[int, Decimal] = {}
@@ -346,13 +366,22 @@ def budget_read(db: Session, budget: Budget) -> BudgetRead:
         ).all()
         spent_by_item = {item_id: Decimal(str(total)) for item_id, total in rows}
 
+    income = _budget_income(db, budget)
+    saving = budget.saving or Decimal("0")
+    base_planned = sum((i.planned for i in budget.items if not i.is_extras), Decimal("0"))
+    extras = income - base_planned - saving
+
+    def planned_of(item: BudgetItem) -> Decimal:
+        return max(extras, Decimal("0")) if item.is_extras else item.planned
+
     items = [
         BudgetItemRead(
             id=item.id,
             name=item.name,
-            planned=_money(item.planned),
+            is_extras=item.is_extras,
+            planned=_money(planned_of(item)),
             spent=_money(spent_by_item.get(item.id, Decimal("0"))),
-            available=_money(item.planned - spent_by_item.get(item.id, Decimal("0"))),
+            available=_money(planned_of(item) - spent_by_item.get(item.id, Decimal("0"))),
         )
         for item in budget.items
     ]
@@ -363,10 +392,25 @@ def budget_read(db: Session, budget: Budget) -> BudgetRead:
         year=budget.year,
         month=budget.month,
         currency=budget.currency,
+        saving=_money(saving),
+        auto_extras=budget.auto_extras,
+        income=_money(income),
+        extras=_money(extras) if budget.auto_extras else None,
         planned=_money(planned),
         spent=_money(spent),
         available=_money(planned - spent),
         items=items,
+    )
+
+
+def collection_read(collection: SpendingCollection) -> CollectionRead:
+    total = sum((i.amount for i in collection.items), Decimal("0"))
+    return CollectionRead(
+        id=collection.id,
+        name=collection.name,
+        currency=collection.currency,
+        total=_money(total),
+        items=[CollectionItemRead.model_validate(i) for i in collection.items],
     )
 
 

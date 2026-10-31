@@ -253,7 +253,8 @@ export interface paths {
         delete: operations["delete_budget_api_budgets__budget_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** Update Budget */
+        patch: operations["update_budget_api_budgets__budget_id__patch"];
         trace?: never;
     };
     "/api/budgets/{budget_id}/items": {
@@ -545,6 +546,111 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/balance-checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Balance Checks */
+        get: operations["list_balance_checks_api_balance_checks_get"];
+        put?: never;
+        /** Record Balance Check */
+        post: operations["record_balance_check_api_balance_checks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/balance-checks/{check_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Balance Check */
+        delete: operations["delete_balance_check_api_balance_checks__check_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/spending-collections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Collections */
+        get: operations["list_collections_api_spending_collections_get"];
+        put?: never;
+        /** Create Collection */
+        post: operations["create_collection_api_spending_collections_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/spending-collections/{collection_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Collection */
+        delete: operations["delete_collection_api_spending_collections__collection_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Collection */
+        patch: operations["update_collection_api_spending_collections__collection_id__patch"];
+        trace?: never;
+    };
+    "/api/spending-collections/{collection_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Item */
+        post: operations["add_item_api_spending_collections__collection_id__items_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/spending-collections/{collection_id}/items/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Item */
+        delete: operations["delete_item_api_spending_collections__collection_id__items__item_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -592,6 +698,13 @@ export interface components {
             /** Authenticated */
             authenticated: boolean;
         };
+        /** BalanceCheckRead */
+        BalanceCheckRead: {
+            /** Id */
+            id: number;
+            /** Created At */
+            created_at: string;
+        };
         /**
          * Bank
          * @enum {string}
@@ -623,6 +736,8 @@ export interface components {
             id: number;
             /** Name */
             name: string;
+            /** Is Extras */
+            is_extras: boolean;
             /** Planned */
             planned: string;
             /** Spent */
@@ -646,6 +761,14 @@ export interface components {
             /** Month */
             month: number;
             currency: components["schemas"]["Currency"];
+            /** Saving */
+            saving: string;
+            /** Auto Extras */
+            auto_extras: boolean;
+            /** Income */
+            income: string;
+            /** Extras */
+            extras: string | null;
             /** Planned */
             planned: string;
             /** Spent */
@@ -675,6 +798,13 @@ export interface components {
             name: string;
             /** Items */
             items: components["schemas"]["BudgetTemplateItemRead"][];
+        };
+        /** BudgetUpdate */
+        BudgetUpdate: {
+            /** Saving */
+            saving?: number | string | null;
+            /** Auto Extras */
+            auto_extras?: boolean | null;
         };
         /** CardBillRead */
         CardBillRead: {
@@ -814,6 +944,47 @@ export interface components {
             /** Icon */
             icon?: string | null;
             kind?: components["schemas"]["TransactionType"] | null;
+        };
+        /** CollectionCreate */
+        CollectionCreate: {
+            /** Name */
+            name: string;
+            /** @default BRL */
+            currency: components["schemas"]["Currency"];
+        };
+        /** CollectionItemCreate */
+        CollectionItemCreate: {
+            /** Name */
+            name: string;
+            /** Amount */
+            amount: number | string;
+        };
+        /** CollectionItemRead */
+        CollectionItemRead: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Amount */
+            amount: string;
+        };
+        /** CollectionRead */
+        CollectionRead: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            currency: components["schemas"]["Currency"];
+            /** Total */
+            total: string;
+            /** Items */
+            items: components["schemas"]["CollectionItemRead"][];
+        };
+        /** CollectionUpdate */
+        CollectionUpdate: {
+            /** Name */
+            name?: string | null;
+            currency?: components["schemas"]["Currency"] | null;
         };
         /** CreditCardCreate */
         CreditCardCreate: {
@@ -1742,6 +1913,41 @@ export interface operations {
             };
         };
     };
+    update_budget_api_budgets__budget_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                budget_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BudgetUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     add_item_api_budgets__budget_id__items_post: {
         parameters: {
             query?: never;
@@ -2396,6 +2602,259 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CardExportResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_balance_checks_api_balance_checks_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BalanceCheckRead"][];
+                };
+            };
+        };
+    };
+    record_balance_check_api_balance_checks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BalanceCheckRead"];
+                };
+            };
+        };
+    };
+    delete_balance_check_api_balance_checks__check_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                check_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_collections_api_spending_collections_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionRead"][];
+                };
+            };
+        };
+    };
+    create_collection_api_spending_collections_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_collection_api_spending_collections__collection_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_collection_api_spending_collections__collection_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_item_api_spending_collections__collection_id__items_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionItemCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_item_api_spending_collections__collection_id__items__item_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: number;
+                item_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionRead"];
                 };
             };
             /** @description Validation Error */

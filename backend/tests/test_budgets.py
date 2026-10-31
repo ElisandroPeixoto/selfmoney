@@ -62,6 +62,7 @@ def test_items_track_planned_spent_and_available(client: TestClient) -> None:
     assert item_named(budget, "Cartão de crédito") == {
         "id": card,
         "name": "Cartão de crédito",
+        "is_extras": False,
         "planned": "1000.00",
         "spent": "300.00",
         "available": "700.00",
@@ -182,3 +183,125 @@ def test_create_budget_validates_sources(client: TestClient) -> None:
     both = {**payload, "template_id": 1, "source_budget_id": 1}
     post(client, "/api/budgets", both, expected=422)
     post(client, "/api/budgets", {"year": 2026, "month": 13}, expected=422)
+
+
+def test_item_can_be_planned_at_zero(client: TestClient) -> None:
+    budget = make_budget(client)
+    budget = add_item(client, budget["id"], "Viagem", "0")
+
+    item = item_named(budget, "Viagem")
+    assert item["planned"] == "0.00"
+    assert item["available"] == "0.00"
+    assert budget["planned"] == "0.00"
+
+
+def test_auto_extras_is_income_minus_planned_minus_saving(client: TestClient) -> None:
+    brl = post(client, "/api/accounts", {"name": "Conta"})
+    usd = post(client, "/api/accounts", {"name": "Dólar", "currency": "USD"})
+    budget = make_budget(client)
+    add_item(client, budget["id"], "Moradia", "1500")
+    budget = add_item(client, budget["id"], "Mercado", "500")
+    url = f"/api/budgets/{budget['id']}"
+
+    def income(account_id: int, amount: str, day: str) -> None:
+        payload = {
+            "description": "x",
+            "amount": amount,
+            "type": "income",
+            "date": day,
+            "account_id": account_id,
+        }
+        post(client, "/api/transactions", payload)
+
+    income(brl["id"], "3000", "2026-10-05")
+    income(brl["id"], "1000", "2026-10-20")
+    income(brl["id"], "999", "2026-09-30")  # other month
+    income(usd["id"], "700", "2026-10-10")  # other currency
+    expense(client, brl["id"], "50", "2026-10-06")  # expenses never count as income
+
+    # Off by default: no extras, but the income is still reported.
+    budget = client.get(url).json()
+    assert budget["extras"] is None
+    assert budget["auto_extras"] is False
+    assert budget["income"] == "4000.00"
+    assert budget["saving"] == "0.00"
+
+    budget = client.patch(url, json={"auto_extras": True}).json()
+    assert budget["extras"] == "2000.00"
+    extras = item_named(budget, "Extras")
+    assert extras["is_extras"] is True
+    assert extras["planned"] == "2000.00"
+    assert budget["planned"] == "4000.00"
+
+    # The item follows the saving and the income.
+    budget = client.patch(url, json={"saving": "750.5"}).json()
+    assert budget["saving"] == "750.50"
+    assert budget["extras"] == "1249.50"
+    assert item_named(budget, "Extras")["planned"] == "1249.50"
+    assert budget["planned"] == "3249.50"
+
+    # Expenses can be linked to it like to any other item.
+    tx = expense(client, brl["id"], "100", "2026-10-07", budget_item_id=extras["id"])
+    assert tx["budget_item_id"] == extras["id"]
+    extras_item = item_named(client.get(url).json(), "Extras")
+    assert extras_item["spent"] == "100.00"
+    assert extras_item["available"] == "1149.50"
+
+    # Saving stays editable and switching the flag off removes the item and unlinks expenses.
+    budget = client.patch(url, json={"auto_extras": False, "saving": "0"}).json()
+    assert budget["extras"] is None
+    assert budget["saving"] == "0.00"
+    assert [i["name"] for i in budget["items"]] == ["Moradia", "Mercado"]
+    listed = client.get("/api/transactions", params={"year": 2026, "month": 10}).json()
+    assert next(t for t in listed if t["id"] == tx["id"])["budget_item_id"] is None
+
+
+def test_extras_can_go_negative_and_update_validation(client: TestClient) -> None:
+    budget = make_budget(client)
+    budget = add_item(client, budget["id"], "Moradia", "100")
+    url = f"/api/budgets/{budget['id']}"
+
+    budget = client.patch(url, json={"auto_extras": True, "saving": "40"}).json()
+    assert budget["extras"] == "-140.00"
+    # The item itself never plans below zero.
+    assert item_named(budget, "Extras")["planned"] == "0.00"
+
+    assert client.patch(url, json={"saving": "-1"}).status_code == 422
+    assert client.patch(url, json={"saving": None}).status_code == 422
+    assert client.patch(url, json={"auto_extras": None}).status_code == 422
+    assert client.patch("/api/budgets/999", json={"saving": "1"}).status_code == 404
+
+
+def test_extras_item_is_managed_automatically(client: TestClient) -> None:
+    budget = make_budget(client)
+    budget = add_item(client, budget["id"], "Moradia", "100")
+    url = f"/api/budgets/{budget['id']}"
+    budget = client.patch(url, json={"auto_extras": True}).json()
+    extras = item_named(budget, "Extras")
+
+    # Turning it on twice doesn't duplicate it; its values can't be edited by hand.
+    budget = client.patch(url, json={"auto_extras": True}).json()
+    assert [i["name"] for i in budget["items"]].count("Extras") == 1
+    assert client.patch(f"{url}/items/{extras['id']}", json={"planned": "5"}).status_code == 422
+
+    # It's left out of copies and templates.
+    copy = post(
+        client, "/api/budgets", {"year": 2026, "month": 11, "source_budget_id": budget["id"]}
+    )
+    assert [i["name"] for i in copy["items"]] == ["Moradia"]
+    template = post(client, f"{url}/save-template", {"name": "Modelo"})
+    assert [i["name"] for i in template["items"]] == ["Moradia"]
+
+    # Removing the item switches the automatic calculation off.
+    budget = client.delete(f"{url}/items/{extras['id']}").json()
+    assert budget["auto_extras"] is False
+    assert budget["extras"] is None
+
+
+def test_extras_name_clash_is_rejected(client: TestClient) -> None:
+    budget = make_budget(client)
+    budget = add_item(client, budget["id"], "Extras", "10")
+    url = f"/api/budgets/{budget['id']}"
+
+    assert client.patch(url, json={"auto_extras": True}).status_code == 409
+    assert client.get(url).json()["auto_extras"] is False

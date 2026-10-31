@@ -170,6 +170,10 @@ function budget(id: number, year: number, month: number, items: Budget["items"])
     year,
     month,
     currency: "BRL",
+    saving: "0.00",
+    auto_extras: false,
+    income: "0.00",
+    extras: null,
     planned: "0",
     spent: "0",
     available: "0",
@@ -180,6 +184,7 @@ function budget(id: number, year: number, month: number, items: Budget["items"])
 const item = (id: number, name: string, planned: string, spent: string) => ({
   id,
   name,
+  is_extras: false,
   planned,
   spent,
   available: (Number(planned) - Number(spent)).toFixed(2),

@@ -175,9 +175,17 @@ class BudgetItemUpdate(BaseModel):
 class BudgetItemRead(BaseModel):
     id: int
     name: str
+    is_extras: bool
     planned: Decimal
     spent: Decimal
     available: Decimal
+
+
+class BudgetUpdate(BaseModel):
+    saving: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=2)
+    auto_extras: bool | None = None
+
+    _normalize_saving = field_validator("saving")(_two_places)
 
 
 class BudgetRead(BaseModel):
@@ -185,6 +193,13 @@ class BudgetRead(BaseModel):
     year: int
     month: int
     currency: Currency
+    saving: Decimal
+    auto_extras: bool
+    # Income of the budget's month and currency.
+    income: Decimal
+    # income - planned (without the Extras item) - saving; null unless auto_extras is on.
+    # May be negative, while the Extras item itself never plans less than zero.
+    extras: Decimal | None
     planned: Decimal
     spent: Decimal
     available: Decimal
@@ -208,6 +223,13 @@ class BudgetTemplateRead(BaseModel):
     id: int
     name: str
     items: list[BudgetTemplateItemRead]
+
+
+def _non_blank(value: str) -> str:
+    value = value.strip()
+    if not value:
+        raise ValueError("must not be blank")
+    return value
 
 
 def _require_reason(value: str | None) -> str | None:
@@ -279,6 +301,67 @@ class MovementRead(BaseModel):
         if value.tzinfo is None:
             value = value.replace(tzinfo=UTC)
         return value.isoformat()
+
+
+class BalanceCheckRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    created_at: datetime
+
+    @field_serializer("created_at")
+    def as_utc(self, value: datetime) -> str:
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=UTC)
+        return value.isoformat()
+
+
+class CollectionCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    currency: Currency = Currency.BRL
+
+    @field_validator("name")
+    @classmethod
+    def _strip_name(cls, value: str) -> str:
+        return _non_blank(value)
+
+
+class CollectionUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    currency: Currency | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _strip_name(cls, value: str | None) -> str | None:
+        return None if value is None else _non_blank(value)
+
+
+class CollectionItemCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    amount: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
+
+    _normalize_amount = field_validator("amount")(_two_places)
+
+    @field_validator("name")
+    @classmethod
+    def _strip_name(cls, value: str) -> str:
+        return _non_blank(value)
+
+
+class CollectionItemRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    amount: Decimal
+
+
+class CollectionRead(BaseModel):
+    id: int
+    name: str
+    currency: Currency
+    total: Decimal
+    items: list[CollectionItemRead]
 
 
 class AuthStatus(BaseModel):

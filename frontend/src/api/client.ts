@@ -17,10 +17,14 @@ export type TransactionType = Schemas["TransactionType"];
 export type MonthTotals = Schemas["MonthTotals"];
 export type Budget = Schemas["BudgetRead"];
 export type BudgetCreate = Schemas["BudgetCreate"];
+export type BudgetUpdate = Schemas["BudgetUpdate"];
 export type BudgetItem = Schemas["BudgetItemRead"];
 export type BudgetItemCreate = Schemas["BudgetItemCreate"];
 export type BudgetItemUpdate = Schemas["BudgetItemUpdate"];
 export type BudgetTemplate = Schemas["BudgetTemplateRead"];
+export type BalanceCheck = Schemas["BalanceCheckRead"];
+export type SpendingCollection = Schemas["CollectionRead"];
+export type CollectionItemCreate = Schemas["CollectionItemCreate"];
 export type Movement = Schemas["MovementRead"];
 export type MovementKind = Schemas["MovementKind"];
 export type MovementUpdate = Schemas["MovementUpdate"];
@@ -239,6 +243,13 @@ export function createBudget(payload: BudgetCreate): Promise<Budget> {
   });
 }
 
+export function updateBudget(id: number, changes: BudgetUpdate): Promise<Budget> {
+  return request<Budget>(`/budgets/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(changes),
+  });
+}
+
 export function deleteBudget(id: number): Promise<void> {
   return request<void>(`/budgets/${id}`, { method: "DELETE" });
 }
@@ -280,6 +291,54 @@ export function saveBudgetAsTemplate(budgetId: number, name: string): Promise<Bu
 
 export function deleteBudgetTemplate(id: number): Promise<void> {
   return request<void>(`/budget-templates/${id}`, { method: "DELETE" });
+}
+
+export function fetchBalanceChecks(signal?: AbortSignal): Promise<BalanceCheck[]> {
+  return request<BalanceCheck[]>("/balance-checks", { signal });
+}
+
+export function recordBalanceCheck(): Promise<BalanceCheck> {
+  return request<BalanceCheck>("/balance-checks", { method: "POST" });
+}
+
+export function deleteBalanceCheck(id: number): Promise<void> {
+  return request<void>(`/balance-checks/${id}`, { method: "DELETE" });
+}
+
+export function fetchCollections(signal?: AbortSignal): Promise<SpendingCollection[]> {
+  return request<SpendingCollection[]>("/spending-collections", { signal });
+}
+
+export function createCollection(
+  payload: Schemas["CollectionCreate"],
+): Promise<SpendingCollection> {
+  return request<SpendingCollection>("/spending-collections", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteCollection(id: number): Promise<void> {
+  return request<void>(`/spending-collections/${id}`, { method: "DELETE" });
+}
+
+export function addCollectionItem(
+  collectionId: number,
+  payload: CollectionItemCreate,
+): Promise<SpendingCollection> {
+  return request<SpendingCollection>(`/spending-collections/${collectionId}/items`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteCollectionItem(
+  collectionId: number,
+  itemId: number,
+): Promise<SpendingCollection> {
+  return request<SpendingCollection>(`/spending-collections/${collectionId}/items/${itemId}`, {
+    method: "DELETE",
+  });
 }
 
 export interface MovementFilter {

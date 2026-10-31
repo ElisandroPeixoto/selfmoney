@@ -62,6 +62,10 @@ const marchBudget: Budget = {
   year: 2026,
   month: 3,
   currency: "BRL",
+  saving: "0.00",
+  auto_extras: false,
+  income: "0.00",
+  extras: null,
   planned: "100.00",
   spent: "0.00",
   available: "100.00",
@@ -69,6 +73,7 @@ const marchBudget: Budget = {
     {
       id: 80,
       name: "Taxas",
+      is_extras: false,
       planned: "100.00",
       spent: "0.00",
       available: "100.00",

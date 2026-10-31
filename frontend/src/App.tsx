@@ -4,8 +4,10 @@ import type { AuthStatus } from "./api/client";
 import AuthGate from "./auth/AuthGate";
 import Sidebar from "./components/Sidebar";
 import Accounts from "./pages/Accounts";
+import BalanceChecks from "./pages/BalanceChecks";
 import Budgets from "./pages/Budgets";
 import Categories from "./pages/Categories";
+import Collections from "./pages/Collections";
 import CreditCards from "./pages/CreditCards";
 import Dashboard from "./pages/Dashboard";
 import Movements from "./pages/Movements";
@@ -28,6 +30,8 @@ export default function App({ authStatus }: { authStatus: AuthStatus }) {
             <Route path="/orcamentos/:budgetId" element={<Budgets />} />
             <Route path="/relatorios" element={<Reports />} />
             <Route path="/cartoes" element={<CreditCards />} />
+            <Route path="/balancos" element={<BalanceChecks />} />
+            <Route path="/colecoes" element={<Collections />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
